@@ -2,11 +2,12 @@
  * Service worker: cache-first offline shell.
  * When you add or rename a file the app loads, add it to ASSETS and bump CACHE_VERSION.
  */
-const CACHE_VERSION = 'resibobz-v1';
+const CACHE_VERSION = 'resibobz-v2';
 
+// Use './' for the shell, never 'index.html': some static servers redirect
+// /index.html, and a cached redirect breaks offline navigation.
 const ASSETS = [
   './',
-  'index.html',
   'manifest.json',
   'css/app.css',
   'js/db.js',
@@ -36,7 +37,7 @@ self.addEventListener('fetch', (event) => {
     caches.match(req, { ignoreSearch: true }).then((cached) => {
       if (cached) return cached;
       return fetch(req).catch(() =>
-        req.mode === 'navigate' ? caches.match('index.html') : Response.error()
+        req.mode === 'navigate' ? caches.match('./') : Response.error()
       );
     })
   );

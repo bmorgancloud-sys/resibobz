@@ -2,7 +2,7 @@
   "name": "ResiboBZ",
   "short_name": "ResiboBZ",
   "description": "GST receipt and invoice maker for Belize small businesses",
-  "start_url": "./index.html#/new",
+  "start_url": "./#/new",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
