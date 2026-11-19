@@ -14,11 +14,12 @@
 
   const DEFAULT_SETTINGS = {
     business: { name: '', address: '', phone: '', email: '', gstTin: '' },
+    logo: null,               // { dataUrl, format: 'PNG'|'JPEG', width, height } or null
+    receiptFooter: 'Thank you for your business!',
     gstRateBp: 1250,          // 12.5%
     receiptPrefix: 'INV-',
     quotePrefix: 'QT-',
     numberPadding: 4,
-    paperSize: 'letter',      // 'letter' | 'a4'
     counter_receipt: 0,       // last number issued
     counter_quote: 0,
   };
@@ -118,6 +119,15 @@
 
   const setSetting = (key, value) => put('settings', { key, value });
 
+  /** Save several settings in one transaction: { key: value, ... }. */
+  async function setSettings(values) {
+    const idb = await open();
+    const tx = idb.transaction('settings', 'readwrite');
+    const s = tx.objectStore('settings');
+    for (const [key, value] of Object.entries(values)) s.put({ key, value });
+    await txDone(tx);
+  }
+
   /** All settings merged over defaults, as a plain object. */
   async function getSettings() {
     const rows = await getAll('settings');
@@ -144,28 +154,59 @@
    * Atomically take the next number for 'receipt' or 'quote'.
    * Returns e.g. "INV-0001". Numbers are never reused, even if the document is later deleted.
    */
-  async function nextNumber(type) {
-    if (type !== 'receipt' && type !== 'quote') throw new Error('Unknown number type: ' + type);
+  const DOC_TYPES = {
+    receipt: { store: 'receipts', prefixKey: 'receiptPrefix' },
+    quote:   { store: 'quotes',   prefixKey: 'quotePrefix' },
+  };
+
+  /** Inside an open settings store: increment the counter and return the formatted number. */
+  async function takeNumber(settingsStore, type) {
+    const { prefixKey } = DOC_TYPES[type];
     const counterKey = 'counter_' + type;
-    const prefixKey = type === 'receipt' ? 'receiptPrefix' : 'quotePrefix';
-
-    const idb = await open();
-    const tx = idb.transaction('settings', 'readwrite');
-    const s = tx.objectStore('settings');
-
     const [counterRow, prefixRow, padRow] = await Promise.all([
-      promisify(s.get(counterKey)),
-      promisify(s.get(prefixKey)),
-      promisify(s.get('numberPadding')),
+      promisify(settingsStore.get(counterKey)),
+      promisify(settingsStore.get(prefixKey)),
+      promisify(settingsStore.get('numberPadding')),
     ]);
-
     const n = (counterRow ? counterRow.value : 0) + 1;
     const prefix = prefixRow ? prefixRow.value : DEFAULT_SETTINGS[prefixKey];
     const pad = padRow ? padRow.value : DEFAULT_SETTINGS.numberPadding;
-    s.put({ key: counterKey, value: n });
-
-    await txDone(tx);
+    settingsStore.put({ key: counterKey, value: n });
     return prefix + String(n).padStart(pad, '0');
+  }
+
+  function assertDocType(type) {
+    if (!DOC_TYPES[type]) throw new Error('Unknown document type: ' + type);
+  }
+
+  /**
+   * Atomically take the next number for 'receipt' or 'quote'.
+   * Returns e.g. "INV-0001". Numbers are never reused, even if the document is later deleted.
+   */
+  async function nextNumber(type) {
+    assertDocType(type);
+    const idb = await open();
+    const tx = idb.transaction('settings', 'readwrite');
+    const number = await takeNumber(tx.objectStore('settings'), type);
+    await txDone(tx);
+    return number;
+  }
+
+  /**
+   * Number and save a new receipt/quote in ONE transaction, so a failed save never burns a number.
+   * Returns the saved record (with id and number).
+   */
+  async function saveNewDocument(type, record) {
+    assertDocType(type);
+    const { store } = DOC_TYPES[type];
+    const idb = await open();
+    const tx = idb.transaction(['settings', store], 'readwrite');
+    const number = await takeNumber(tx.objectStore('settings'), type);
+    const doc = { ...record, number };
+    delete doc.id;
+    const id = await promisify(tx.objectStore(store).add(doc));
+    await txDone(tx);
+    return { ...doc, id };
   }
 
   // ---- Backup ----
@@ -182,8 +223,8 @@
     DEFAULT_SETTINGS,
     open,
     get, getAll, getAllByIndex, count, put, remove, clear,
-    getSetting, setSetting, getSettings, ensureDefaults,
-    nextNumber,
+    getSetting, setSetting, setSettings, getSettings, ensureDefaults,
+    nextNumber, saveNewDocument,
     exportAll,
   };
 })();

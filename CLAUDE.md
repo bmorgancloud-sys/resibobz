@@ -54,30 +54,67 @@ index.html          App shell + bottom nav
 manifest.json       PWA manifest
 sw.js               Service worker (offline cache)
 css/app.css         All styles
+js/money.js         Cents / qty / GST-rate parsing, formatting and GST maths (pure, unit-tested)
+js/receipt.js       Receipt record builder, WhatsApp summary/link, file names (pure, unit-tested)
 js/db.js            IndexedDB wrapper (the only file that touches IndexedDB)
+js/ui.js            DOM helpers: h(), field(), toast(), confirm()
+js/pdf.js           A4 receipt PDF (lazy-loads /lib on first use)
 js/app.js           Router, nav, view rendering
-js/pdf.js           PDF generation (later phase)
-lib/                Vendored third-party libs (jsPDF, autotable)
+js/views/*.js       One file per tab: new, history, products, customers, settings
+lib/                Vendored third-party libs (jsPDF, autotable); versions in lib/README.md
 icons/              App icons
+tests/              node:test unit tests for the pure modules
 ```
 
 Keep files small and single-purpose. Add new files under `js/` instead of growing `app.js`.
+Script load order in `index.html` matters: money, receipt, db, ui, pdf, views, then app.
 
 ## Navigation
 
-Bottom nav with five tabs: **New, History, Products, Customers, Settings**. Hash routing (`#/new`, `#/history`, …).
+Bottom nav with five tabs: **New, History, Products, Customers, Settings**. Hash routing:
+`#/<tab>[/<param>]`, e.g. `#/history/12`, `#/products/new`. Each view registers
+`window.Views[<tab>] = { render(ctx) }` with `ctx = { el, params, setTitle }`.
+
+## Receipts
+
+- The record shape is documented at the top of `js/receipt.js`. A receipt stores a **snapshot** of the
+  business details, GST rate, line values and footer, so later edits never change a past receipt.
+  The logo is the exception: the PDF uses the current logo from Settings.
+- Save with `db.saveNewDocument('receipt', record)`, which assigns the number in the same transaction.
+- Customer name/phone are free text on the receipt; saved customers/products are only suggestions.
+- Payment methods: `cash`, `card`, `transfer`.
+
+## PDF and sharing
+
+- A4 only for now. Layout: logo + business + GST TIN, receipt meta, Bill To, line table,
+  GST summary (standard vs zero-rated), totals, footer note, page numbers when multi-page.
+- Share: Web Share API with the PDF file when `navigator.canShare({files})` is true (Android Chrome).
+  Otherwise download the PDF and show a `wa.me` link with a text summary. 7-digit numbers get the 501 code.
+- The PDF is generated when the receipt screen opens, so `navigator.share` runs directly in the tap handler.
+- Web Share and the service worker need a secure context: `localhost` or HTTPS. A phone hitting
+  `http://192.168.x.x` gets neither.
+
+## Before every commit
+
+1. `node --check` on every project JS file (everything except `lib/`).
+2. `node --test tests/`. All tests must pass.
+3. Added/renamed a file the app loads? Add it to `ASSETS` in `sw.js` and bump `CACHE_VERSION`.
 
 ## Phases
 
 - **Phase 0 (done):** folder structure, empty app shell with bottom nav, `db.js`, git.
+- **Phase 1 (done):** Settings (business, logo, GST rate, prefix, footer), New Receipt (line items,
+  zero-rated toggle, customer, payment method, live totals), save to IndexedDB, A4 PDF, share/WhatsApp.
+  Also: basic Products and Customers lists (used as suggestions) and a History list + receipt detail.
 - Later phases are defined as we go. Do only the phase asked for.
 
 ## Running locally
 
-Service workers need `http://localhost`, not `file://`. For example:
+Service workers need `http://localhost`, not `file://`:
 
 ```
-python -m http.server 8000
+npx serve . -l 3000
 ```
 
-Then open http://localhost:8000.
+Then open http://localhost:3000. Note `serve` redirects `/index.html` to `/index`, so the app and
+service worker always refer to the shell as `./`.

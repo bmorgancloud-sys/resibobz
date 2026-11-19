@@ -1,64 +1,93 @@
 /*
  * app.js: router, bottom nav, view rendering.
- * Views are placeholders in Phase 0.
+ *
+ * Routes are hashes: #/<tab>[/<param>...], e.g. #/products, #/products/new, #/products/12.
+ * Each view file registers itself on window.Views[<tab>] = { title, render(ctx) }.
+ * ctx = { el, params, setTitle(text) }. render may be async.
  */
 (function () {
   'use strict';
 
-  const ROUTES = {
-    new:       { title: 'New',       render: placeholder('Create a receipt or quote.') },
-    history:   { title: 'History',   render: placeholder('Past receipts and quotes will appear here.') },
-    products:  { title: 'Products',  render: placeholder('Your saved products and services.') },
-    customers: { title: 'Customers', render: placeholder('Your saved customers.') },
-    settings:  { title: 'Settings',  render: placeholder('Business details, GST rate and numbering.') },
+  window.Views = window.Views || {};
+
+  const TABS = {
+    new:       { title: 'New receipt' },
+    history:   { title: 'History' },
+    products:  { title: 'Products' },
+    customers: { title: 'Customers' },
+    settings:  { title: 'Settings' },
   };
-  const DEFAULT_ROUTE = 'new';
+  const DEFAULT_TAB = 'new';
 
   const viewEl = document.getElementById('view');
   const titleEl = document.getElementById('view-title');
   const navLinks = document.querySelectorAll('.bottom-nav a[data-route]');
 
-  function placeholder(text) {
-    return (el) => {
-      const div = document.createElement('div');
-      div.className = 'placeholder';
-      div.textContent = text;
-      el.replaceChildren(div);
-    };
+  let renderSeq = 0;
+
+  function parseHash() {
+    const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
+    const tab = TABS[parts[0]] ? parts[0] : DEFAULT_TAB;
+    return { tab, params: TABS[parts[0]] ? parts.slice(1) : [] };
   }
 
-  function currentRoute() {
-    const name = location.hash.replace(/^#\/?/, '').split('/')[0];
-    return ROUTES[name] ? name : DEFAULT_ROUTE;
+  function setTitle(text) {
+    titleEl.textContent = text;
+    document.title = text + ' · ResiboBZ';
   }
 
-  function navigate() {
-    const name = currentRoute();
-    const route = ROUTES[name];
-    titleEl.textContent = route.title;
-    document.title = route.title + ' · ResiboBZ';
+  async function navigate() {
+    const seq = ++renderSeq;
+    const { tab, params } = parseHash();
+
     navLinks.forEach((a) => {
-      const active = a.dataset.route === name;
+      const active = a.dataset.route === tab;
       a.classList.toggle('active', active);
       if (active) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');
     });
-    route.render(viewEl);
+
+    // Render into a fresh container so a slow, superseded render can't touch the new view.
+    const container = document.createElement('div');
+    viewEl.replaceChildren(container);
     window.scrollTo(0, 0);
+
+    const view = window.Views[tab];
+    const ctx = {
+      el: container,
+      params,
+      setTitle: (t) => { if (seq === renderSeq) setTitle(t); },
+    };
+    setTitle(TABS[tab].title);
+
+    if (!view) {
+      container.append(ui.empty(TABS[tab].placeholder || ''));
+      return;
+    }
+    try {
+      await view.render(ctx);
+    } catch (err) {
+      console.error(err);
+      if (seq === renderSeq) {
+        container.replaceChildren(ui.h('div', { class: 'placeholder', role: 'alert' },
+          'Something went wrong: ' + (err && err.message ? err.message : err)));
+      }
+    }
   }
 
   async function start() {
-    window.addEventListener('hashchange', navigate);
-    if (!location.hash) history.replaceState(null, '', '#/' + DEFAULT_ROUTE);
-    navigate();
-
     try {
       await db.ensureDefaults();
     } catch (err) {
       console.error(err);
-      viewEl.insertAdjacentHTML('afterbegin',
-        '<p class="placeholder" role="alert">Storage is unavailable. Data cannot be saved on this device.</p>');
+      document.body.insertBefore(
+        ui.h('p', { class: 'banner', role: 'alert' }, 'Storage is unavailable. Data cannot be saved on this device.'),
+        viewEl);
     }
+
+    window.addEventListener('hashchange', navigate);
+    if (!location.hash) history.replaceState(null, '', '#/' + DEFAULT_TAB);
+    navigate();
 
     if ('serviceWorker' in navigator && location.protocol !== 'file:') {
       navigator.serviceWorker.register('sw.js').catch((err) => console.error('SW registration failed', err));
