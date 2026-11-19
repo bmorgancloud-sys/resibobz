@@ -1,0 +1,14 @@
+{
+  "name": "ResiboBZ",
+  "short_name": "ResiboBZ",
+  "description": "GST receipt and invoice maker for Belize small businesses",
+  "start_url": "./index.html#/new",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f6f9",
+  "theme_color": "#0b5cab",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

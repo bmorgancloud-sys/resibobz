@@ -1,0 +1,103 @@
+:root {
+  --brand: #0b5cab;
+  --brand-ink: #ffffff;
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --text: #1a1f29;
+  --muted: #5b6575;
+  --border: #dde2ea;
+  --nav-h: 64px;
+  --tap: 48px;
+  --radius: 12px;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--brand);
+  color: var(--brand-ink);
+  padding: calc(env(safe-area-inset-top) + 14px) 16px 14px;
+}
+.app-header h1 { margin: 0; font-size: 1.25rem; font-weight: 600; }
+
+.app-main {
+  padding: 16px;
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px);
+  max-width: 720px;
+  margin: 0 auto;
+  outline: none;
+}
+
+.placeholder {
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* Bottom navigation */
+.bottom-nav {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+.bottom-nav a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: var(--tap);
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.75rem;
+}
+.bottom-nav svg {
+  width: 24px; height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bottom-nav a.active { color: var(--brand); font-weight: 600; }
+.bottom-nav a:focus-visible { outline: 2px solid var(--brand); outline-offset: -4px; }
+
+/* Shared controls for later phases */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  padding: 0 20px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--brand);
+  color: var(--brand-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
