@@ -1,5 +1,5 @@
 /*
- * views/settings.js: business details, logo, GST rate, numbering, footer note.
+ * views/settings.js: business details, logo, GST rate, numbering, PDF page size, footer note.
  */
 (function () {
   'use strict';
@@ -99,6 +99,18 @@
     const footer = h('textarea', { rows: 2, maxlength: 300 });
     footer.value = s.receiptFooter;
 
+    let pageSize = pdf.PAGE_SIZES[s.pageSize] ? s.pageSize : db.DEFAULT_SETTINGS.pageSize;
+    const pageSizeGroup = h('fieldset', { class: 'segmented segmented-2', 'aria-describedby': 'page-size-hint' },
+      h('legend', null, 'PDF page size'),
+      Object.entries(pdf.PAGE_SIZES).map(([id, p]) => [
+        h('input', {
+          type: 'radio', name: 'page-size', id: 'page-' + id, value: id,
+          checked: pageSize === id,
+          onchange: () => { pageSize = id; },
+        }),
+        h('label', { for: 'page-' + id }, p.label),
+      ]));
+
     function updatePreviews() {
       receiptPreview.textContent = previewNumber(receiptPrefix.value.trim(), s.counter_receipt, s.numberPadding);
       quotePreview.textContent = previewNumber(quotePrefix.value.trim(), s.counter_quote, s.numberPadding);
@@ -150,6 +162,7 @@
         receiptPrefix: receiptPrefix.value.trim(),
         quotePrefix: quotePrefix.value.trim(),
         receiptFooter: footer.value.trim(),
+        pageSize,
       });
       toast('Settings saved');
     }
@@ -181,6 +194,10 @@
         h('p', { class: 'field-hint' }, 'Next quote: ', quotePreview)),
       h('section', { class: 'card' },
         h('h2', null, 'Receipts'),
+        h('div', { class: 'field' },
+          pageSizeGroup,
+          h('p', { class: 'field-hint', id: 'page-size-hint' },
+            'Match the paper you print on. Applies to every PDF, including past receipts.')),
         field('Footer note', footer, { hint: 'Printed at the bottom of receipts.' })),
       h('div', { class: 'sticky-bar' },
         h('button', { type: 'submit', class: 'btn btn-block' }, 'Save settings')));

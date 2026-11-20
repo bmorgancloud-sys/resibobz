@@ -122,10 +122,11 @@
         incl,
         field('Unit', unit, { hint: 'Optional.' }),
         checkbox('Zero-rated / exempt', zero, 'No GST is charged on this item.')),
-      h('div', { class: 'form-actions' },
-        h('button', { type: 'submit', class: 'btn btn-block' }, isNew ? 'Add product' : 'Save changes'),
-        h('button', { type: 'button', class: 'btn btn-secondary btn-block', onclick: () => replaceRoute('#/products') }, 'Cancel'),
-        isNew ? null : h('button', { type: 'button', class: 'btn btn-danger-outline btn-block', onclick: onDelete }, 'Delete product'))));
+      isNew ? null : h('div', { class: 'form-actions' },
+        h('button', { type: 'button', class: 'btn btn-danger-outline btn-block', onclick: onDelete }, 'Delete product')),
+      h('div', { class: 'sticky-bar sticky-bar-buttons' },
+        h('button', { type: 'button', class: 'btn btn-secondary', onclick: () => replaceRoute('#/products') }, 'Cancel'),
+        h('button', { type: 'submit', class: 'btn' }, isNew ? 'Add product' : 'Save changes'))));
 
     if (isNew) name.focus();
   }

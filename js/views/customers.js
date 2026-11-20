@@ -104,10 +104,11 @@
         field('Email', email),
         field('Address', address),
         field('TIN', tin, { hint: 'Optional. For business customers who need it on their invoice.' })),
-      h('div', { class: 'form-actions' },
-        h('button', { type: 'submit', class: 'btn btn-block' }, isNew ? 'Add customer' : 'Save changes'),
-        h('button', { type: 'button', class: 'btn btn-secondary btn-block', onclick: () => replaceRoute('#/customers') }, 'Cancel'),
-        isNew ? null : h('button', { type: 'button', class: 'btn btn-danger-outline btn-block', onclick: onDelete }, 'Delete customer'))));
+      isNew ? null : h('div', { class: 'form-actions' },
+        h('button', { type: 'button', class: 'btn btn-danger-outline btn-block', onclick: onDelete }, 'Delete customer')),
+      h('div', { class: 'sticky-bar sticky-bar-buttons' },
+        h('button', { type: 'button', class: 'btn btn-secondary', onclick: () => replaceRoute('#/customers') }, 'Cancel'),
+        h('button', { type: 'submit', class: 'btn' }, isNew ? 'Add customer' : 'Save changes'))));
 
     if (isNew) name.focus();
   }

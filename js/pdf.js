@@ -1,14 +1,19 @@
 /*
- * pdf.js: A4 receipt PDF using jsPDF + jspdf-autotable from /lib (lazy-loaded, offline).
- * Exposes global `pdf` with receiptBlob(receipt) -> Promise<Blob>.
+ * pdf.js: Letter/A4 receipt PDF using jsPDF + jspdf-autotable from /lib (lazy-loaded, offline).
+ * Exposes global `pdf` with receiptBlob(receipt) -> Promise<Blob> and PAGE_SIZES.
  */
 (function () {
   'use strict';
 
   const LIBS = ['lib/jspdf.umd.min.js', 'lib/jspdf.plugin.autotable.min.js'];
 
-  const PAGE_W = 210;
-  const PAGE_H = 297;
+  /** Supported page sizes (mm). Keys are the stored `pageSize` setting values. */
+  const PAGE_SIZES = {
+    letter: { label: 'Letter', format: 'letter', w: 215.9, h: 279.4 },
+    a4:     { label: 'A4',     format: 'a4',     w: 210,   h: 297 },
+  };
+  const DEFAULT_PAGE_SIZE = 'letter';
+
   const M = 15;                      // page margin, mm
   const FOOTER_SPACE = 24;           // reserved at the bottom of each page
   const TEXT = [26, 31, 41];
@@ -81,17 +86,20 @@
     }
   }
 
-  function build(r, logo) {
+  function build(r, logo, pageSize) {
     const { jsPDF } = window.jspdf;
     const fmt = money.formatCents;
     const rateText = money.formatRate(r.gstRateBp) + '%';
     const b = r.business || {};
+    const page = PAGE_SIZES[pageSize] || PAGE_SIZES[DEFAULT_PAGE_SIZE];
+    const pageW = page.w;
+    const pageH = page.h;
 
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const doc = new jsPDF({ unit: 'mm', format: page.format });
     doc.setProperties({ title: 'Receipt ' + r.number, subject: b.name || 'Receipt', creator: 'ResiboBZ' });
     doc.setLineHeightFactor(1.25);
 
-    const R = PAGE_W - M;
+    const R = pageW - M;
     const META_X = R - 58;           // left edge of the receipt meta labels
 
     // ---- Left: logo, then business details beside it ----
@@ -174,7 +182,7 @@
 
     // Keep the GST summary and totals together on one page.
     const BLOCK_H = 40;
-    if (y + BLOCK_H > PAGE_H - FOOTER_SPACE) {
+    if (y + BLOCK_H > pageH - FOOTER_SPACE) {
       doc.addPage();
       y = M;
     }
@@ -222,24 +230,27 @@
     const pages = doc.getNumberOfPages();
     for (let p = 1; p <= pages; p++) {
       doc.setPage(p);
-      const fy = PAGE_H - FOOTER_SPACE + 6;
+      const fy = pageH - FOOTER_SPACE + 6;
       if (p === pages && r.footer) {
         setFont(doc, 9, 'normal', MUTED);
-        textBlock(doc, r.footer, PAGE_W / 2, fy, { maxWidth: PAGE_W - 2 * M - 30, align: 'center' });
+        textBlock(doc, r.footer, pageW / 2, fy, { maxWidth: pageW - 2 * M - 30, align: 'center' });
       }
       setFont(doc, 8, 'normal', MUTED);
-      doc.text(r.number, M, PAGE_H - 8);
-      if (pages > 1) doc.text('Page ' + p + ' of ' + pages, R, PAGE_H - 8, { align: 'right' });
+      doc.text(r.number, M, pageH - 8);
+      if (pages > 1) doc.text('Page ' + p + ' of ' + pages, R, pageH - 8, { align: 'right' });
     }
 
     return doc;
   }
 
-  /** Build the receipt PDF and return it as a Blob. Uses the current logo from Settings. */
+  /**
+   * Build the receipt PDF and return it as a Blob.
+   * Uses the current logo and page size from Settings (neither is snapshotted on the receipt).
+   */
   async function receiptBlob(r) {
-    const [, logo] = await Promise.all([ensureLibs(), db.getSetting('logo')]);
-    return build(r, logo).output('blob');
+    const [, logo, pageSize] = await Promise.all([ensureLibs(), db.getSetting('logo'), db.getSetting('pageSize')]);
+    return build(r, logo, pageSize).output('blob');
   }
 
-  window.pdf = { ensureLibs, receiptBlob };
+  window.pdf = { ensureLibs, receiptBlob, PAGE_SIZES };
 })();

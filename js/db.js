@@ -16,6 +16,7 @@
     business: { name: '', address: '', phone: '', email: '', gstTin: '' },
     logo: null,               // { dataUrl, format: 'PNG'|'JPEG', width, height } or null
     receiptFooter: 'Thank you for your business!',
+    pageSize: 'letter',       // PDF page size: 'letter' | 'a4'
     gstRateBp: 1250,          // 12.5%
     receiptPrefix: 'INV-',
     quotePrefix: 'QT-',
