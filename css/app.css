@@ -343,3 +343,31 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
   transition: opacity 0.2s, transform 0.2s;
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* Type-ahead suggestions (New Receipt: products, customers) */
+.typeahead-host { position: relative; }
+.typeahead-list {
+  position: absolute; /* no top: sits right under the input, its static position */
+  left: 0; right: 0;
+  z-index: 6; /* above the sticky totals bar */
+  max-height: 264px; /* ~4.5 rows, so it's clear the list scrolls */
+  overflow-y: auto;
+  margin: 4px 0 0; padding: 4px 0;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+.typeahead-option {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 56px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.typeahead-option + .typeahead-option { border-top: 1px solid var(--border); }
+.typeahead-option:hover, .typeahead-option[aria-selected="true"] { background: #e8f0fa; }
+.typeahead-main, .typeahead-end { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.typeahead-end { align-items: flex-end; flex: none; gap: 2px; }
+.typeahead-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.typeahead-sub { font-size: 0.8125rem; color: var(--muted); }

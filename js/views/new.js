@@ -36,9 +36,26 @@
     const productByName = new Map(products.map((p) => [p.name.toLowerCase(), p]));
     const customerByName = new Map(customers.map((c) => [c.name.toLowerCase(), c]));
 
-    // Suggestion lists from saved products/customers
-    const productList = h('datalist', { id: 'dl-products' }, products.map((p) => h('option', { value: p.name })));
-    const customerList = h('datalist', { id: 'dl-customers' }, customers.map((c) => h('option', { value: c.name })));
+    // Type-ahead suggestions from saved products/customers (free text is still allowed).
+    const searchProducts = (q) => typeahead.match(products, q, { text: (p) => p.name });
+    const searchCustomers = (q) => typeahead.match(customers, q, { text: (c) => c.name, digits: (c) => c.phone });
+
+    function productOption(p) {
+      return [
+        h('span', { class: 'typeahead-main' },
+          h('span', { class: 'typeahead-title' }, p.name),
+          p.unit ? h('span', { class: 'typeahead-sub' }, 'per ' + p.unit) : null),
+        h('span', { class: 'typeahead-end' },
+          h('span', { class: 'list-amount' }, money.formatCents(p.priceCents)),
+          p.zeroRated ? h('span', { class: 'badge' }, 'Zero-rated') : null),
+      ];
+    }
+
+    function customerOption(c) {
+      return h('span', { class: 'typeahead-main' },
+        h('span', { class: 'typeahead-title' }, c.name),
+        c.phone ? h('span', { class: 'typeahead-sub' }, c.phone) : null);
+    }
 
     // ---- Setup hint ----
     const setupHint = !settings.business.name || !settings.business.gstTin
@@ -49,7 +66,7 @@
       : null;
 
     // ---- Customer ----
-    const custName = h('input', { type: 'text', value: draft.customerName, list: 'dl-customers', maxlength: 100, autocomplete: 'off' });
+    const custName = h('input', { type: 'text', value: draft.customerName, maxlength: 100, autocomplete: 'off' });
     const custPhone = h('input', { type: 'tel', value: draft.customerPhone, inputmode: 'tel', maxlength: 40, autocomplete: 'off' });
     custName.addEventListener('input', () => {
       draft.customerName = custName.value;
@@ -60,6 +77,18 @@
       }
     });
     custPhone.addEventListener('input', () => { draft.customerPhone = custPhone.value; });
+    if (customers.length) {
+      typeahead.attach(custName, {
+        label: 'Saved customers',
+        search: searchCustomers,
+        renderOption: customerOption,
+        onPick: (c) => {
+          custName.value = draft.customerName = c.name;
+          // An explicit pick replaces the phone; typing a name only fills an empty phone.
+          if (c.phone) custPhone.value = draft.customerPhone = c.phone;
+        },
+      });
+    }
 
     // ---- Line items ----
     const linesEl = h('div');
@@ -71,7 +100,7 @@
     }
 
     function lineCard(l, index) {
-      const desc = h('input', { type: 'text', value: l.description, list: 'dl-products', maxlength: 120, autocomplete: 'off' });
+      const desc = h('input', { type: 'text', value: l.description, maxlength: 120, autocomplete: 'off' });
       const qty = h('input', { type: 'text', class: 'num', inputmode: 'decimal', value: l.qty, maxlength: 9 });
       const price = h('input', { type: 'text', class: 'num', inputmode: 'decimal', value: l.price, placeholder: '0.00', maxlength: 14 });
       const zero = h('input', { type: 'checkbox', checked: l.zeroRated });
@@ -87,20 +116,36 @@
       }
       l.updateLineTotal = updateLineTotal;
 
+      /** Fill the line's price and GST status from a saved product. */
+      function applyProduct(prod) {
+        l.price = money.centsToInput(prod.priceCents);
+        price.value = l.price;
+        l.zeroRated = !!prod.zeroRated;
+        zero.checked = l.zeroRated;
+        setError(price, '');
+      }
+
       desc.addEventListener('input', () => {
         l.description = desc.value;
-        // Picked a saved product: fill its price and GST status.
+        // Typed a saved product's exact name: same as picking it.
         const prod = productByName.get(desc.value.trim().toLowerCase());
-        if (prod) {
-          l.price = money.centsToInput(prod.priceCents);
-          price.value = l.price;
-          l.zeroRated = !!prod.zeroRated;
-          zero.checked = l.zeroRated;
-          setError(price, '');
-        }
+        if (prod) applyProduct(prod);
         setError(desc, '');
         onChange();
       });
+      if (products.length) {
+        typeahead.attach(desc, {
+          label: 'Saved products',
+          search: searchProducts,
+          renderOption: productOption,
+          onPick: (prod) => {
+            desc.value = l.description = prod.name;
+            applyProduct(prod);
+            setError(desc, '');
+            onChange();
+          },
+        });
+      }
       qty.addEventListener('input', () => { l.qty = qty.value; setError(qty, ''); onChange(); });
       price.addEventListener('input', () => { l.price = price.value; setError(price, ''); onChange(); });
       zero.addEventListener('change', () => { l.zeroRated = zero.checked; onChange(); });
@@ -224,8 +269,7 @@
         linesEl,
         addItem),
       h('section', { class: 'card' }, payment),
-      h('div', { class: 'sticky-bar sticky-bar-split' }, totalsEl, saveBtn),
-      productList, customerList);
+      h('div', { class: 'sticky-bar sticky-bar-split' }, totalsEl, saveBtn));
 
     el.append(form);
     renderLines();

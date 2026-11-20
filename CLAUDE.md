@@ -58,6 +58,7 @@ js/money.js         Cents / qty / GST-rate parsing, formatting and GST maths (pu
 js/receipt.js       Receipt record builder, WhatsApp summary/link, file names (pure, unit-tested)
 js/db.js            IndexedDB wrapper (the only file that touches IndexedDB)
 js/ui.js            DOM helpers: h(), field(), toast(), confirm()
+js/typeahead.js     Suggestion matching (pure, unit-tested) + combobox for picking saved products/customers
 js/pdf.js           Letter/A4 receipt PDF (lazy-loads /lib on first use)
 js/app.js           Router, nav, view rendering
 js/views/*.js       One file per tab: new, history, products, customers, settings
@@ -67,7 +68,7 @@ tests/              node:test unit tests for the pure modules
 ```
 
 Keep files small and single-purpose. Add new files under `js/` instead of growing `app.js`.
-Script load order in `index.html` matters: money, receipt, db, ui, pdf, views, then app.
+Script load order in `index.html` matters: money, receipt, db, ui, typeahead, pdf, views, then app.
 
 ## Navigation
 
@@ -81,7 +82,9 @@ Bottom nav with five tabs: **New, History, Products, Customers, Settings**. Hash
   business details, GST rate, line values and footer, so later edits never change a past receipt.
   The logo and page size are the exception: the PDF uses the current values from Settings.
 - Save with `db.saveNewDocument('receipt', record)`, which assigns the number in the same transaction.
-- Customer name/phone are free text on the receipt; saved customers/products are only suggestions.
+- Customer name/phone are free text on the receipt; saved customers/products are only suggestions,
+  offered as type-ahead on New Receipt. Picking a product fills description, price and zero-rated;
+  picking a customer fills name and phone.
 - Payment methods: `cash`, `card`, `transfer`.
 
 ## PDF and sharing
@@ -107,6 +110,8 @@ Bottom nav with five tabs: **New, History, Products, Customers, Settings**. Hash
 - **Phase 1 (done):** Settings (business, logo, GST rate, prefix, footer), New Receipt (line items,
   zero-rated toggle, customer, payment method, live totals), save to IndexedDB, Letter/A4 PDF, share/WhatsApp.
   Also: basic Products and Customers lists (used as suggestions) and a History list + receipt detail.
+- **Phase 2 (done):** Products (name, price, zero-rated; add/edit/delete), Customers (name, phone, email,
+  TIN optional), type-ahead picking of saved products and customers on New Receipt.
 - Later phases are defined as we go. Do only the phase asked for.
 
 ## Running locally
