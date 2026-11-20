@@ -2,8 +2,10 @@
  * typeahead.js: suggestion matching (pure, unit-tested) and a small accessible combobox
  * used on New Receipt to pick saved products and customers. Exposes global `typeahead`.
  *
- * Matching is case- and accent-insensitive ("jose" finds "José"). Ranking:
- *   name starts with the query > a word in the name starts with it > name contains it > phone digits match.
+ * match(): names only, case- and accent-insensitive ("jose" finds "José"). Ranking:
+ *   name starts with the query > a word in the name starts with it > name contains it.
+ * matchPhone(): phone numbers only, compared as digits (spaces, dashes, brackets and a
+ *   leading +501/501 ignored). Ranking: number starts with the query > contains it.
  * Ties keep the input order, so callers pass items already sorted by name.
  */
 (function (root) {
@@ -23,25 +25,43 @@
     return text.includes(needle) ? 2 : -1;
   }
 
-  /**
-   * Filter and rank items for a query.
-   *   text(item)    the name to match
-   *   digits(item)  optional: a phone number; a query with 3+ digits also matches its digits
-   * An empty query returns the first `limit` items unchanged.
-   */
-  function match(items, query, { text, digits, limit = 8 }) {
-    const needle = norm(query);
-    if (!needle) return items.slice(0, limit);
-    const qDigits = needle.replace(/\D/g, '');
+  /** Keep items with scoreOf(item) !== -1, lowest score first, ties in input order. */
+  function rank(items, scoreOf, limit) {
     const ranked = [];
     items.forEach((item, i) => {
-      let s = score(norm(text(item)), needle);
-      if (s === -1 && digits && qDigits.length >= 3 && qDigits.length === needle.replace(/[\s()+-]/g, '').length
-          && String(digits(item) || '').replace(/\D/g, '').includes(qDigits)) s = 3;
+      const s = scoreOf(item);
       if (s !== -1) ranked.push({ item, s, i });
     });
     ranked.sort((a, b) => a.s - b.s || a.i - b.i);
     return ranked.slice(0, limit).map((r) => r.item);
+  }
+
+  /**
+   * Filter and rank items by name only. text(item) is the name to match.
+   * An empty query returns the first `limit` items unchanged.
+   */
+  function match(items, query, { text, limit = 8 }) {
+    const needle = norm(query);
+    if (!needle) return items.slice(0, limit);
+    return rank(items, (item) => score(norm(text(item)), needle), limit);
+  }
+
+  /** Phone as bare local digits: "+501 (622) 1234" -> "6221234". */
+  function phoneDigits(s) {
+    return String(s == null ? '' : s).replace(/\D/g, '').replace(/^501/, '');
+  }
+
+  /**
+   * Filter and rank items by phone number only. phone(item) is the number to match.
+   * Returns nothing until the query has `minDigits` digits (not counting a leading 501).
+   */
+  function matchPhone(items, query, { phone, limit = 8, minDigits = 3 }) {
+    const needle = phoneDigits(query);
+    if (needle.length < minDigits) return [];
+    return rank(items, (item) => {
+      const i = phoneDigits(phone(item)).indexOf(needle);
+      return i === -1 ? -1 : i === 0 ? 0 : 1;
+    }, limit);
   }
 
   // ---- Combobox (browser only) ----
@@ -132,7 +152,7 @@
     return { close };
   }
 
-  const api = { norm, score, match, attach };
+  const api = { norm, score, match, phoneDigits, matchPhone, attach };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.typeahead = api;

@@ -23,6 +23,8 @@ function sample() {
 test('buildReceipt computes and snapshots everything', () => {
   const rec = sample();
   assert.equal(rec.customer.name, 'Ana');
+  assert.equal(rec.customer.tin, '');
+  assert.equal(rec.customer.address, '');
   assert.equal(rec.lines[0].description, 'Rice 5lb');
   assert.equal(rec.lines[0].netCents, 1998);
   assert.equal(rec.lines[0].gstCents, 0);

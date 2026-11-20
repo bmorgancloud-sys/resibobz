@@ -10,7 +10,9 @@
 
   let lineSeq = 0;
   const newLine = () => ({ key: ++lineSeq, description: '', qty: '1', price: '', zeroRated: false });
-  const newDraft = () => ({ customerName: '', customerPhone: '', paymentMethod: 'cash', lines: [newLine()] });
+  const newDraft = () => ({
+    customerName: '', customerPhone: '', customerTin: '', customerAddress: '', paymentMethod: 'cash', lines: [newLine()],
+  });
   let draft = newDraft();
 
   function isBlank(l) {
@@ -38,7 +40,9 @@
 
     // Type-ahead suggestions from saved products/customers (free text is still allowed).
     const searchProducts = (q) => typeahead.match(products, q, { text: (p) => p.name });
-    const searchCustomers = (q) => typeahead.match(customers, q, { text: (c) => c.name, digits: (c) => c.phone });
+    // Each customer field searches only its own data: names in Name, numbers in Phone.
+    const searchCustomerNames = (q) => typeahead.match(customers, q, { text: (c) => c.name });
+    const searchCustomerPhones = (q) => typeahead.matchPhone(customers, q, { phone: (c) => c.phone });
 
     function productOption(p) {
       return [
@@ -51,10 +55,11 @@
       ];
     }
 
+    // Name + phone in both customer fields, so same-name customers can be told apart.
     function customerOption(c) {
       return h('span', { class: 'typeahead-main' },
         h('span', { class: 'typeahead-title' }, c.name),
-        c.phone ? h('span', { class: 'typeahead-sub' }, c.phone) : null);
+        h('span', { class: 'typeahead-sub' }, c.phone || 'No phone'));
     }
 
     // ---- Setup hint ----
@@ -68,25 +73,38 @@
     // ---- Customer ----
     const custName = h('input', { type: 'text', value: draft.customerName, maxlength: 100, autocomplete: 'off' });
     const custPhone = h('input', { type: 'tel', value: draft.customerPhone, inputmode: 'tel', maxlength: 40, autocomplete: 'off' });
+    const custTin = h('input', { type: 'text', value: draft.customerTin, maxlength: 40, autocapitalize: 'characters', autocomplete: 'off' });
+    const custAddress = h('textarea', { rows: 2, maxlength: 300 });
+    custAddress.value = draft.customerAddress;
+    const custInputs = { customerName: custName, customerPhone: custPhone, customerTin: custTin, customerAddress: custAddress };
+    for (const [key, input] of Object.entries(custInputs)) {
+      input.addEventListener('input', () => { draft[key] = input.value; });
+    }
+    /** Put a value in a customer field (and the draft). onlyIfEmpty leaves typed text alone. */
+    function fillCustomer(key, value, onlyIfEmpty) {
+      if (!value || (onlyIfEmpty && custInputs[key].value.trim())) return;
+      custInputs[key].value = draft[key] = value;
+    }
+    // Typing a saved name exactly fills empty fields; picking a suggestion replaces them.
     custName.addEventListener('input', () => {
-      draft.customerName = custName.value;
       const c = customerByName.get(custName.value.trim().toLowerCase());
-      if (c && c.phone && !custPhone.value.trim()) {
-        custPhone.value = c.phone;
-        draft.customerPhone = c.phone;
-      }
+      if (c) fillDetails(c, true);
     });
-    custPhone.addEventListener('input', () => { draft.customerPhone = custPhone.value; });
+    function fillDetails(c, onlyIfEmpty) {
+      fillCustomer('customerPhone', c.phone, onlyIfEmpty);
+      fillCustomer('customerTin', c.tin, onlyIfEmpty);
+      fillCustomer('customerAddress', c.address, onlyIfEmpty);
+    }
+    function pickCustomer(c) {
+      custName.value = draft.customerName = c.name;
+      fillDetails(c, false);
+    }
     if (customers.length) {
       typeahead.attach(custName, {
-        label: 'Saved customers',
-        search: searchCustomers,
-        renderOption: customerOption,
-        onPick: (c) => {
-          custName.value = draft.customerName = c.name;
-          // An explicit pick replaces the phone; typing a name only fills an empty phone.
-          if (c.phone) custPhone.value = draft.customerPhone = c.phone;
-        },
+        label: 'Saved customers', search: searchCustomerNames, renderOption: customerOption, onPick: pickCustomer,
+      });
+      typeahead.attach(custPhone, {
+        label: 'Saved customers', search: searchCustomerPhones, renderOption: customerOption, onPick: pickCustomer,
       });
     }
 
@@ -242,7 +260,9 @@
       try {
         const fresh = await db.getSettings(); // in case settings changed in another tab
         const record = receipt.buildReceipt({
-          customer: { name: draft.customerName, phone: draft.customerPhone },
+          customer: {
+            name: draft.customerName, phone: draft.customerPhone, tin: draft.customerTin, address: draft.customerAddress,
+          },
           paymentMethod: draft.paymentMethod,
           lines: parsed,
         }, fresh);
@@ -262,7 +282,9 @@
       h('section', { class: 'card' },
         h('h2', null, 'Customer'),
         field('Name', custName, { hint: 'Optional. Leave blank for a walk-in sale.' }),
-        field('Phone', custPhone, { hint: 'Optional. Used for the WhatsApp link.' })),
+        field('Phone', custPhone, { hint: 'Optional. Used for the WhatsApp link.' }),
+        field('TIN', custTin, { hint: 'Optional. Printed under Bill To.' }),
+        field('Address', custAddress, { hint: 'Optional. Printed under Bill To.' })),
       h('section', { class: 'items-section' },
         h('h2', { class: 'section-title' }, 'Items'),
         h('p', { class: 'field-hint items-hint' }, 'Prices exclude GST.'),

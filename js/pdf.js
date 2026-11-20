@@ -145,10 +145,11 @@
     y += 4.5;
     setFont(doc, 11, 'bold');
     y = textBlock(doc, r.customer && r.customer.name ? r.customer.name : 'Walk-in customer', M, y, { maxWidth: 120 });
-    if (r.customer && r.customer.phone) {
-      setFont(doc, 9, 'normal', MUTED);
-      y = textBlock(doc, r.customer.phone, M, y + 0.5);
-    }
+    const cust = r.customer || {};
+    setFont(doc, 9, 'normal', MUTED);
+    if (cust.phone) y = textBlock(doc, cust.phone, M, y + 0.5);
+    if (cust.tin) y = textBlock(doc, 'TIN: ' + cust.tin, M, y + 0.5);
+    if (cust.address) y = textBlock(doc, cust.address, M, y + 0.5, { maxWidth: 120 });
     y += 6;
 
     // ---- Line items ----

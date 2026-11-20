@@ -4,7 +4,7 @@
  * Saved receipt record:
  * {
  *   id, number, type: 'receipt', date, createdAt,          // ISO strings
- *   customer: { name, phone },
+ *   customer: { name, phone, tin, address },               // tin/address: '' or missing on older receipts
  *   paymentMethod: 'cash' | 'card' | 'transfer',
  *   lines: [{ description, qtyMilli, unitCents, zeroRated, netCents, gstCents }],
  *   gstRateBp, subtotalCents, taxableCents, zeroRatedCents, gstCents, totalCents,
@@ -37,7 +37,7 @@
 
   /**
    * Build a receipt record (without id/number) from validated input.
-   * input = { customer: {name, phone}, paymentMethod, lines: [{description, qtyMilli, unitCents, zeroRated}] }
+   * input = { customer: {name, phone, tin?, address?}, paymentMethod, lines: [{description, qtyMilli, unitCents, zeroRated}] }
    */
   function buildReceipt(input, settings, now = new Date()) {
     const lines = input.lines.map((l) => ({
@@ -55,6 +55,8 @@
       customer: {
         name: (input.customer.name || '').trim(),
         phone: (input.customer.phone || '').trim(),
+        tin: (input.customer.tin || '').trim(),
+        address: (input.customer.address || '').trim(),
       },
       paymentMethod: input.paymentMethod,
       lines: lines.map((l, i) => ({ ...l, netCents: t.lines[i].netCents, gstCents: t.lines[i].gstCents })),

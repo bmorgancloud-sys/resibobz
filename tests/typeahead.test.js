@@ -44,17 +44,61 @@ test('respects limit and returns nothing for no match', () => {
   assert.deepEqual(t.match(products, 'xyz', byName), []);
 });
 
-test('customers match by phone digits when the query looks like a phone number', () => {
-  const customers = [
-    { name: 'Ana Gomez', phone: '622-1234' },
-    { name: 'Bob 622 Ltd', phone: '' },
-    { name: 'Carlos', phone: '+501 610 5555' },
-  ];
-  const opts = { text: (c) => c.name, digits: (c) => c.phone };
-  assert.deepEqual(names(t.match(customers, '6221', opts)), ['Ana Gomez']);
-  assert.deepEqual(names(t.match(customers, '610 55', opts)), ['Carlos']);
-  // Name matches rank ahead of phone matches.
-  assert.deepEqual(names(t.match(customers, '622', opts)), ['Bob 622 Ltd', 'Ana Gomez']);
-  // Fewer than 3 digits never matches phones.
-  assert.deepEqual(names(t.match(customers, '61', opts)), []);
+const customers = [
+  { name: 'Ana Gomez', phone: '622-1234' },
+  { name: 'Bob 622 Ltd', phone: '' },
+  { name: 'Carlos', phone: '+501 610 5555' },
+  { name: 'José Pérez', phone: '(501) 633-6221' },
+  { name: 'José Pérez', phone: '501 600 7777' },
+];
+const byCustomerName = { text: (c) => c.name };
+const byPhone = { phone: (c) => c.phone };
+
+test('name field: matches customer names only, never phone numbers', () => {
+  assert.deepEqual(names(t.match(customers, '6221', byCustomerName)), []);
+  assert.deepEqual(names(t.match(customers, '610 55', byCustomerName)), []);
+  // Digits that are part of a name still match that name.
+  assert.deepEqual(names(t.match(customers, '622', byCustomerName)), ['Bob 622 Ltd']);
+});
+
+test('name field: case/accent-insensitive with the usual ranking', () => {
+  assert.deepEqual(names(t.match(customers, 'JOSE', byCustomerName)), ['José Pérez', 'José Pérez']);
+  assert.deepEqual(names(t.match(customers, 'perez', byCustomerName)), ['José Pérez', 'José Pérez']);
+  assert.deepEqual(names(t.match(customers, 'go', byCustomerName)), ['Ana Gomez']);
+});
+
+test('phoneDigits keeps digits only and drops a leading +501 / 501', () => {
+  assert.equal(t.phoneDigits('+501 (622) 12-34'), '6221234');
+  assert.equal(t.phoneDigits('501-622-1234'), '6221234');
+  assert.equal(t.phoneDigits('622 1234'), '6221234');
+  assert.equal(t.phoneDigits(null), '');
+});
+
+test('phone field: matches phone digits only, ignoring formatting and 501', () => {
+  assert.deepEqual(names(t.matchPhone(customers, '622-12', byPhone)), ['Ana Gomez']);
+  assert.deepEqual(names(t.matchPhone(customers, '(610) 55', byPhone)), ['Carlos']);
+  assert.deepEqual(names(t.matchPhone(customers, '+501 610', byPhone)), ['Carlos']);
+  assert.deepEqual(names(t.matchPhone(customers, '501610', byPhone)), ['Carlos']);
+  // Names are not searched from the phone field.
+  assert.deepEqual(names(t.matchPhone(customers, 'Ana', byPhone)), []);
+});
+
+test('phone field: starts-with ranks before contains', () => {
+  // Ana is 6221234 (starts with 6221), José is 6336221 (contains it).
+  assert.deepEqual(names(t.matchPhone(customers, '6221', byPhone)), ['Ana Gomez', 'José Pérez']);
+  const list = [{ name: 'A', phone: '600-6331' }, { name: 'B', phone: '633-0000' }];
+  assert.deepEqual(names(t.matchPhone(list, '633', byPhone)), ['B', 'A']);
+});
+
+test('phone field: no suggestions before 3 digits (a leading 501 does not count)', () => {
+  assert.deepEqual(t.matchPhone(customers, '61', byPhone), []);
+  assert.deepEqual(t.matchPhone(customers, '+501 61', byPhone), []);
+  assert.deepEqual(t.matchPhone(customers, '501', byPhone), []);
+  assert.deepEqual(t.matchPhone(customers, '', byPhone), []);
+  assert.equal(t.matchPhone(customers, '600', byPhone).length, 1);
+});
+
+test('no match returns nothing, so the typed walk-in text is kept', () => {
+  assert.deepEqual(t.match(customers, 'Zed', byCustomerName), []);
+  assert.deepEqual(t.matchPhone(customers, '999', byPhone), []);
 });
