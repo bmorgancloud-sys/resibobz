@@ -1,5 +1,6 @@
 /*
- * views/settings.js: business details, logo, GST rate, numbering, PDF page size, footer note.
+ * views/settings.js: business details, logo, GST rate, numbering, PDF page size, footer note,
+ * and a Developer card to load demo data (js/demo.js).
  */
 (function () {
   'use strict';
@@ -47,7 +48,38 @@
     }
   }
 
-  async function render({ el }) {
+  /** Developer card: load sample data after confirming, then re-render to show it. */
+  function developerSection(ctx) {
+    async function onLoadDemo() {
+      const ok = await ui.confirm(
+        'Add sample data? This adds a Demo Store business (Belmopan, GST 12.5%), 6 products and 4 customers. ' +
+        'Nothing is overwritten: existing products and customers are kept, and only empty business fields are filled. ' +
+        'Unsaved changes on this screen will be lost.',
+        { okText: 'Load demo data' });
+      if (!ok) return;
+      btn.disabled = true;
+      try {
+        const p = await demo.load();
+        const skipped = p.skippedProducts + p.skippedCustomers;
+        toast(`Added ${p.products.length} products, ${p.customers.length} customers` +
+          (skipped ? ` (${skipped} already there)` : ''));
+        ctx.el.replaceChildren();
+        await render(ctx);
+      } catch (err) {
+        console.error(err);
+        toast('Could not load demo data: ' + err.message);
+        btn.disabled = false;
+      }
+    }
+    const btn = h('button', { type: 'button', class: 'btn btn-secondary btn-block', onclick: onLoadDemo }, 'Load demo data');
+    return h('section', { class: 'card' },
+      h('h2', null, 'Developer'),
+      btn,
+      h('p', { class: 'field-hint' }, 'Fills in sample business details, products and customers for trying the app.'));
+  }
+
+  async function render(ctx) {
+    const { el } = ctx;
     const s = await db.getSettings();
     const b = s.business;
     let logo = s.logo; // pending value; saved with the form
@@ -199,6 +231,7 @@
           h('p', { class: 'field-hint', id: 'page-size-hint' },
             'Match the paper you print on. Applies to every PDF, including past receipts.')),
         field('Footer note', footer, { hint: 'Printed at the bottom of receipts.' })),
+      developerSection(ctx),
       h('div', { class: 'sticky-bar' },
         h('button', { type: 'submit', class: 'btn btn-block' }, 'Save settings')));
 

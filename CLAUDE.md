@@ -60,6 +60,7 @@ js/db.js            IndexedDB wrapper (the only file that touches IndexedDB)
 js/ui.js            DOM helpers: h(), field(), toast(), confirm()
 js/typeahead.js     Suggestion matching (pure, unit-tested) + combobox for picking saved products/customers
 js/pdf.js           Letter/A4 receipt PDF (lazy-loads /lib on first use)
+js/demo.js          Sample data for Settings > Developer > Load demo data (plan() is pure, unit-tested)
 js/app.js           Router, nav, view rendering
 js/views/*.js       One file per tab: new, history, products, customers, settings
 lib/                Vendored third-party libs (jsPDF, autotable); versions in lib/README.md
@@ -69,7 +70,7 @@ tests/browser/      *.e2e.js: headless-Chrome tests of the real app (no npm; dri
 ```
 
 Keep files small and single-purpose. Add new files under `js/` instead of growing `app.js`.
-Script load order in `index.html` matters: money, receipt, db, ui, typeahead, pdf, views, then app.
+Script load order in `index.html` matters: money, receipt, db, ui, typeahead, pdf, demo, views, then app.
 
 ## Navigation
 

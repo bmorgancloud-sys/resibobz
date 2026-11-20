@@ -2,7 +2,7 @@
  * Service worker: cache-first offline shell.
  * When you add or rename a file the app loads, add it to ASSETS and bump CACHE_VERSION.
  */
-const CACHE_VERSION = 'resibobz-v10';
+const CACHE_VERSION = 'resibobz-v12';
 
 // Use './' for the shell, never 'index.html': some static servers redirect
 // /index.html, and a cached redirect breaks offline navigation.
@@ -16,6 +16,7 @@ const ASSETS = [
   'js/ui.js',
   'js/typeahead.js',
   'js/pdf.js',
+  'js/demo.js',
   'js/views/new.js',
   'js/views/history.js',
   'js/views/products.js',
