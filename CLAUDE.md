@@ -119,7 +119,10 @@ Bottom nav with five tabs: **New, History, Products, Customers, Settings**. Hash
 
 ## Running locally
 
-Service workers need `http://localhost`, not `file://`:
+Service workers need `http://localhost`, not `file://`. On Windows, double-click `start.bat`
+(or run it from a terminal): it starts the server in its own "ResiboBZ server" window and opens
+http://localhost:3000 in the default browser. If the server is already running it just opens the
+browser. Close that window to stop the server. Elsewhere, or by hand:
 
 ```
 npx serve . -l 3000
