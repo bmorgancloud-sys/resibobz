@@ -61,6 +61,7 @@ js/ui.js            DOM helpers: h(), field(), toast(), confirm()
 js/typeahead.js     Suggestion matching (pure, unit-tested) + combobox for picking saved products/customers
 js/pdf.js           Letter/A4 receipt PDF (lazy-loads /lib on first use)
 js/demo.js          Sample data for Settings > Developer > Load demo data (plan() is pure, unit-tested)
+js/update.js        Service worker registration + automatic reload when an update takes control
 js/app.js           Router, nav, view rendering
 js/views/*.js       One file per tab: new, history, products, customers, settings
 lib/                Vendored third-party libs (jsPDF, autotable); versions in lib/README.md
@@ -70,7 +71,15 @@ tests/browser/      *.e2e.js: headless-Chrome tests of the real app (no npm; dri
 ```
 
 Keep files small and single-purpose. Add new files under `js/` instead of growing `app.js`.
-Script load order in `index.html` matters: money, receipt, db, ui, typeahead, pdf, demo, views, then app.
+Script load order in `index.html` matters: money, receipt, db, ui, typeahead, pdf, demo, views, update, then app.
+
+## Updates
+
+`sw.js` is cache-first, so the first load after a deploy runs the old code while the new worker
+installs. `js/update.js` reloads the page when the new worker takes control: straight away if
+nothing is unsaved, otherwise at the next navigation once the New Receipt draft is empty
+(`Views.new.hasDraft()`). Settings and product/customer edit forms count as unsaved. The first
+install never reloads.
 
 ## Navigation
 
@@ -86,7 +95,7 @@ Bottom nav with five tabs: **New, History, Products, Customers, Settings**. Hash
 - Save with `db.saveNewDocument('receipt', record)`, which assigns the number in the same transaction.
 - Customer name/phone are free text on the receipt; saved customers/products are only suggestions,
   offered as type-ahead on New Receipt. Picking a product fills description, price and zero-rated;
-  picking a customer fills name and phone.
+  picking a customer fills name, phone, TIN and address.
 - Payment methods: `cash`, `card`, `transfer`.
 
 ## PDF and sharing
@@ -104,7 +113,7 @@ Bottom nav with five tabs: **New, History, Products, Customers, Settings**. Hash
 
 1. `node --check` on every project JS file (everything except `lib/`).
 2. `node --test tests/`. All tests must pass.
-   Touched New Receipt or the type-ahead? Also run `node --test tests/browser/new-receipt.e2e.js`
+   Touched New Receipt, the type-ahead, `update.js` or `sw.js`? Also run `node --test "tests/browser/*.e2e.js"`
    (needs Chrome; set `CHROME=` if it isn't in the default install path).
 3. Changed any file the service worker caches? Bump `CACHE_VERSION` in `sw.js`. Added/renamed one? Also add it to `ASSETS`.
 

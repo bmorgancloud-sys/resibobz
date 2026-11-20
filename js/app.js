@@ -37,6 +37,7 @@
   }
 
   async function navigate() {
+    if (appUpdate.reloadIfReady()) return; // a new version is waiting: load it on this route
     const seq = ++renderSeq;
     const { tab, params } = parseHash();
 
@@ -89,9 +90,7 @@
     if (!location.hash) history.replaceState(null, '', '#/' + DEFAULT_TAB);
     navigate();
 
-    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-      navigator.serviceWorker.register('sw.js').catch((err) => console.error('SW registration failed', err));
-    }
+    appUpdate.register();
   }
 
   start();

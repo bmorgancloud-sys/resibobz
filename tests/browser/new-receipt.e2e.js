@@ -1,116 +1,24 @@
 // Browser test for customer type-ahead on New Receipt.
 //
-// Run with: node tests/browser/new-receipt.e2e.js
+// Run with: node --test "tests/browser/*.e2e.js"
 // (Not picked up by `node --test tests/`: it needs Chrome. No npm needed.)
 //
-// Serves the app from a throwaway local server, launches headless Chrome with a fresh
-// profile at 360px wide, seeds real customers into IndexedDB through db.js, then types
-// into the Name and Phone fields with real key input and checks the suggestions and
-// where the dropdown sits. Set CHROME=/path/to/chrome if it isn't in the default place.
+// Opens the app in headless Chrome with a fresh profile at 360px wide (see harness.js),
+// seeds real customers into IndexedDB through db.js, then types into the Name and Phone
+// fields with real key input and checks the suggestions and where the dropdown sits.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const http = require('node:http');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { spawn } = require('node:child_process');
+const harness = require('./harness.js');
 
-const ROOT = path.resolve(__dirname, '..', '..');
-const WIDTH = 360;
+const WIDTH = harness.WIDTH;
 const CUSTOMERS = [
   { name: 'brandon Morgan', phone: '615-0551' },
   { name: 'Eldon', phone: '610-0551' },
   { name: 'Kimley Jone', phone: '622-9887' },
 ];
 
-const CHROME_PATHS = [
-  process.env.CHROME,
-  'C:/Program Files/Google/Chrome/Application/chrome.exe',
-  'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  '/usr/bin/google-chrome',
-  '/usr/bin/chromium',
-].filter(Boolean);
-
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
-  '.svg': 'image/svg+xml', '.png': 'image/png' };
-
-function serve() {
-  const server = http.createServer((req, res) => {
-    let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-    if (p.endsWith('/')) p += 'index.html';
-    const file = path.join(ROOT, p);
-    if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-      res.writeHead(404).end();
-      return;
-    }
-    res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });
-    fs.createReadStream(file).pipe(res);
-  });
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
-}
-
-async function launchChrome() {
-  const exe = CHROME_PATHS.find((p) => fs.existsSync(p));
-  if (!exe) throw new Error('Chrome not found; set CHROME=/path/to/chrome');
-  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'resibobz-e2e-'));
-  const proc = spawn(exe, ['--headless=new', '--remote-debugging-port=0', '--user-data-dir=' + profile,
-    '--no-first-run', '--no-default-browser-check', `--window-size=${WIDTH},800`, 'about:blank'], { stdio: 'ignore' });
-  const portFile = path.join(profile, 'DevToolsActivePort');
-  for (let i = 0; i < 100 && !fs.existsSync(portFile); i++) await new Promise((r) => setTimeout(r, 100));
-  const port = fs.readFileSync(portFile, 'utf8').split('\n')[0];
-  const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-  const page = targets.find((t) => t.type === 'page');
-  return { proc, profile, wsUrl: page.webSocketDebuggerUrl };
-}
-
-/** Minimal Chrome DevTools Protocol client. */
-async function connect(wsUrl) {
-  const ws = new WebSocket(wsUrl);
-  await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
-  let id = 0;
-  const pending = new Map();
-  const waiters = [];
-  ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
-    if (msg.id && pending.has(msg.id)) {
-      const { resolve, reject } = pending.get(msg.id);
-      pending.delete(msg.id);
-      msg.error ? reject(new Error(msg.error.message)) : resolve(msg.result);
-    } else if (msg.method) {
-      for (const w of waiters.filter((w) => w.method === msg.method)) { waiters.splice(waiters.indexOf(w), 1); w.resolve(msg.params); }
-    }
-  };
-  const send = (method, params = {}) => new Promise((resolve, reject) => {
-    pending.set(++id, { resolve, reject });
-    ws.send(JSON.stringify({ id, method, params }));
-  });
-  const once = (method) => new Promise((resolve) => waiters.push({ method, resolve }));
-  return { send, once, close: () => ws.close() };
-}
-
-let server, chrome, cdp, base;
-
-async function evaluate(expression) {
-  const r = await cdp.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-  if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
-  return r.result.value;
-}
-
-async function waitFor(expression, what) {
-  for (let i = 0; i < 100; i++) {
-    if (await evaluate(expression)) return;
-    await new Promise((r) => setTimeout(r, 50));
-  }
-  throw new Error('Timed out waiting for ' + what);
-}
-
-async function goto(url) {
-  const loaded = cdp.once('Page.loadEventFired');
-  await cdp.send('Page.navigate', { url });
-  await loaded;
-}
+let page, cdp, evaluate;
 
 /** Find the New Receipt input whose label is `label`. */
 const inputExpr = (label) => `[...document.querySelectorAll('.field label')]
@@ -157,34 +65,16 @@ function assertBelowField(s) {
 }
 
 test.before(async () => {
-  server = await serve();
-  base = `http://localhost:${server.address().port}/`;
-  chrome = await launchChrome();
-  cdp = await connect(chrome.wsUrl);
-  await cdp.send('Page.enable');
-  await cdp.send('Emulation.setDeviceMetricsOverride', { width: WIDTH, height: 800, deviceScaleFactor: 2, mobile: true });
-  await goto(base + '#/customers');
-  await waitFor('typeof db === "object"', 'app scripts');
+  page = await harness.open('#/customers');
+  ({ cdp, evaluate } = page);
   await evaluate(`Promise.all(${JSON.stringify(CUSTOMERS)}.map((c) => db.put('customers', { ...c, email: '', address: '', tin: '' })))`);
-  // Hash-only navigation fires no load event, so set the hash and reload for real
-  // (which also proves the customers were persisted to IndexedDB).
-  await evaluate(`location.hash = '#/new'`);
-  const reloaded = cdp.once('Page.loadEventFired');
-  await cdp.send('Page.reload', { ignoreCache: true });
-  await reloaded;
-  await waitFor(`!!document.querySelector('.field label') && [...document.querySelectorAll('.field label')].some((l) => l.textContent.trim() === 'Phone')`, 'New Receipt');
+  // A real reload also proves the customers were persisted to IndexedDB.
+  await page.reloadAt('#/new');
+  await page.waitFor(`[...document.querySelectorAll('.field label')].some((l) => l.textContent.trim() === 'Phone')`, 'New Receipt');
 });
 
 test.after(async () => {
-  try { cdp && cdp.close(); } catch {}
-  if (server) server.close();
-  if (chrome) {
-    // Wait for Chrome to exit so its profile files are unlocked (Windows), then delete them.
-    const exited = new Promise((r) => chrome.proc.once('exit', r));
-    chrome.proc.kill();
-    await exited;
-    fs.rmSync(chrome.profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
-  }
+  if (page) await page.close();
 });
 
 test('Phone "615" suggests brandon Morgan only, below the Phone field', async () => {

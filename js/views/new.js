@@ -305,5 +305,11 @@
     renderLines();
   }
 
-  (window.Views = window.Views || {}).new = { render };
+  /** True if the in-progress receipt has anything typed in it (used to hold off update reloads). */
+  function hasDraft() {
+    return ['customerName', 'customerPhone', 'customerTin', 'customerAddress'].some((k) => draft[k].trim())
+      || draft.lines.some((l) => !isBlank(l));
+  }
+
+  (window.Views = window.Views || {}).new = { render, hasDraft };
 })();
