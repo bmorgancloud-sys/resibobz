@@ -95,7 +95,15 @@
       fillCustomer('customerTin', c.tin, onlyIfEmpty);
       fillCustomer('customerAddress', c.address, onlyIfEmpty);
     }
+    // Picking a different customer than last time clears TIN/address first, so one
+    // customer's details never carry over to another. Re-picking the same one keeps edits.
+    let pickedId = null;
     function pickCustomer(c) {
+      if (c.id !== pickedId) {
+        custTin.value = draft.customerTin = '';
+        custAddress.value = draft.customerAddress = '';
+      }
+      pickedId = c.id;
       custName.value = draft.customerName = c.name;
       fillDetails(c, false);
     }
