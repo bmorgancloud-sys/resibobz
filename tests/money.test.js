@@ -97,3 +97,12 @@ test('calcTotals with no lines', () => {
   const t = m.calcTotals([], 1250);
   assert.equal(t.totalCents, 0);
 });
+
+test('BZD to USD at the fixed 2:1 peg, rounded half away from zero', () => {
+  assert.equal(m.BZD_PER_USD, 2);
+  assert.equal(m.bzdToUsdCents(11250), 5625);
+  assert.equal(m.bzdToUsdCents(4501), 2251);
+  assert.equal(m.bzdToUsdCents(1), 1);
+  assert.equal(m.bzdToUsdCents(0), 0);
+  assert.equal(m.bzdToUsdCents(-3), -2);
+});

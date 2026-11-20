@@ -2,6 +2,7 @@
  * app.js: router, bottom nav, view rendering.
  *
  * Routes are hashes: #/<tab>[/<param>...], e.g. #/products, #/products/new, #/products/12.
+ * Routes with `nav` aren't tabs themselves; they highlight that tab (#/receipt/12 -> History).
  * Each view file registers itself on window.Views[<tab>] = { title, render(ctx) }.
  * ctx = { el, params, setTitle(text) }. render may be async.
  */
@@ -16,6 +17,7 @@
     products:  { title: 'Products' },
     customers: { title: 'Customers' },
     settings:  { title: 'Settings' },
+    receipt:   { title: 'Receipt', nav: 'history' },
   };
   const DEFAULT_TAB = 'new';
 
@@ -41,8 +43,9 @@
     const seq = ++renderSeq;
     const { tab, params } = parseHash();
 
+    const navTab = TABS[tab].nav || tab;
     navLinks.forEach((a) => {
-      const active = a.dataset.route === tab;
+      const active = a.dataset.route === navTab;
       a.classList.toggle('active', active);
       if (active) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');

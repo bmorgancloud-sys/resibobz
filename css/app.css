@@ -371,3 +371,43 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
 .typeahead-end { align-items: flex-end; flex: none; gap: 2px; }
 .typeahead-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .typeahead-sub { font-size: 0.8125rem; color: var(--muted); }
+
+/* History: filters, summary, voided rows */
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.filters { display: grid; gap: 10px; margin-bottom: 12px; }
+.date-range { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.date-range .field { margin-bottom: 0; }
+.list-summary { margin: 0 0 10px; font-size: 0.875rem; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.list-title .badge { margin-left: 8px; vertical-align: 1px; }
+.badge-void { background: #fdecea; color: var(--danger); letter-spacing: 0.04em; }
+.is-void .list-amount, .is-void .total-value { text-decoration: line-through; color: var(--muted); }
+.list-row.is-void { border-color: #f3c4c0; }
+
+/* Notices (backup reminder, saved, voided) */
+.notice {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid #f0d98a;
+  border-radius: var(--radius);
+  background: #fff8e1;
+  font-size: 0.9375rem;
+}
+.notice a { color: var(--brand); font-weight: 600; display: inline-block; padding: 4px 0; }
+.notice-ok { background: var(--zero-bg); border-color: #b5dfc5; }
+.notice-danger { background: #fdecea; border-color: #f3c4c0; color: var(--danger); }
+
+/* Receipt detail */
+.pre-line { white-space: pre-line; }
+.detail-label { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+.detail-meta { margin: 10px 0 0; font-size: 0.875rem; color: var(--muted); }
+.detail-meta .detail-label { text-transform: none; letter-spacing: 0; font-size: inherit; }
+
+/* Settings > Backup */
+#backup { scroll-margin-top: 72px; }
+.backup-intro { margin: -4px 0 12px; }
+.summary-head { flex-wrap: wrap; }
+.summary-head > span { white-space: nowrap; color: var(--muted); font-size: 0.9375rem; }
+.summary-head strong { white-space: nowrap; }

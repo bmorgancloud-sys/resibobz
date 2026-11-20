@@ -76,22 +76,47 @@
     toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
   }
 
-  /** Modal confirm. Resolves true/false. */
-  function confirm(message, { okText = 'OK', cancelText = 'Cancel', danger = false } = {}) {
+  /**
+   * Modal dialog. With `input` (a label), shows a text box and resolves its text on OK;
+   * otherwise resolves true. Cancel resolves false (and null with `input`).
+   */
+  function dialog(message, { okText = 'OK', cancelText = 'Cancel', danger = false, input = null } = {}) {
     return new Promise((resolve) => {
       const ok = h('button', { type: 'button', class: danger ? 'btn btn-danger' : 'btn' }, okText);
       const cancel = h('button', { type: 'button', class: 'btn btn-secondary' }, cancelText);
+      const box = input ? h('input', { type: 'text', maxlength: 200, class: 'dialog-input' }) : null;
       const dlg = h('dialog', { class: 'dialog' },
         h('p', null, message),
+        box ? field(input, box) : null,
         h('div', { class: 'dialog-actions' }, cancel, ok));
       const done = (v) => { dlg.close(); dlg.remove(); resolve(v); };
-      ok.addEventListener('click', () => done(true));
-      cancel.addEventListener('click', () => done(false));
-      dlg.addEventListener('cancel', (e) => { e.preventDefault(); done(false); });
+      ok.addEventListener('click', () => done(box ? box.value.trim() : true));
+      cancel.addEventListener('click', () => done(box ? null : false));
+      dlg.addEventListener('cancel', (e) => { e.preventDefault(); done(box ? null : false); });
       document.body.append(dlg);
       dlg.showModal();
-      cancel.focus();
+      cancel.focus(); // safe default for destructive dialogs; no keyboard pop-up on phones
     });
+  }
+
+  /** Modal confirm. Resolves true/false. */
+  function confirm(message, opts = {}) {
+    return dialog(message, { ...opts, input: null });
+  }
+
+  /** Confirm with an optional text answer. Resolves the text ('' if left blank), or null if cancelled. */
+  function ask(message, inputLabel, opts = {}) {
+    return dialog(message, { ...opts, input: inputLabel });
+  }
+
+  /** Save a Blob as a file via a temporary download link. */
+  function download(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = h('a', { href: url, download: name, hidden: true });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
   }
 
   /** Case-insensitive name sort. */
@@ -109,5 +134,5 @@
     return h('div', { class: 'placeholder' }, text);
   }
 
-  window.ui = { h, field, setError, checkbox, toast, confirm, byName, replaceRoute, empty };
+  window.ui = { h, field, setError, checkbox, toast, confirm, ask, download, byName, replaceRoute, empty };
 })();

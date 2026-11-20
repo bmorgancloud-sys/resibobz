@@ -9,8 +9,11 @@
  *   lines: [{ description, qtyMilli, unitCents, zeroRated, netCents, gstCents }],
  *   gstRateBp, subtotalCents, taxableCents, zeroRatedCents, gstCents, totalCents,
  *   business: { name, address, phone, email, gstTin },      // snapshot at time of sale
- *   footer
+ *   footer,
+ *   voided?, voidedAt?, voidReason?                         // set by db.voidReceipt; receipts are never deleted
  * }
+ * A voided receipt keeps its number (never reused), shows VOID on screen and in the PDF,
+ * and is left out of all totals (filter.summarize).
  * Everything needed to reprint is stored on the receipt, so later changes to
  * settings, products or the GST rate never alter a past receipt.
  */
@@ -33,6 +36,12 @@
   /** "2026-11-19T..." -> "19 Nov 2026" (day-first, unambiguous). */
   function formatDate(iso) {
     return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  /** "2026-11-19T15:45..." -> "19 Nov 2026, 3:45 pm" (local time). */
+  function formatDateTime(iso) {
+    const d = new Date(iso);
+    return formatDate(iso) + ', ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
   }
 
   /**
@@ -75,7 +84,7 @@
   function summaryText(r) {
     const out = [];
     if (r.business && r.business.name) out.push(r.business.name);
-    out.push('Receipt ' + r.number + ' (' + formatDate(r.date) + ')');
+    out.push('Receipt ' + r.number + ' (' + formatDate(r.date) + ')' + (r.voided ? ' - VOID' : ''));
     out.push('');
     for (const l of r.lines) {
       out.push(money.formatQty(l.qtyMilli) + ' x ' + l.description + ': ' + money.formatCents(l.netCents)
@@ -111,7 +120,7 @@
     return String(r.number).replace(/[^\w.-]+/g, '_') + '.pdf';
   }
 
-  const api = { PAYMENT_METHODS, paymentLabel, formatDate, buildReceipt, summaryText, whatsappNumber, whatsappUrl, pdfFileName };
+  const api = { PAYMENT_METHODS, paymentLabel, formatDate, formatDateTime, buildReceipt, summaryText, whatsappNumber, whatsappUrl, pdfFileName };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.receipt = api;

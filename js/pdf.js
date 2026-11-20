@@ -20,6 +20,7 @@
   const MUTED = [91, 101, 117];
   const BRAND = [11, 92, 171];
   const RULE = [221, 226, 234];
+  const DANGER = [179, 38, 30];
   const PT_TO_MM = 0.3528;
   const LOGO_MAX_W = 40;             // logo box, mm; the image is scaled to fit, never stretched
   const LOGO_MAX_H = 28;
@@ -86,6 +87,25 @@
     }
   }
 
+  /**
+   * Large diagonal "VOID" across the middle of the current page, see-through so the
+   * receipt underneath stays readable. Rotated along the page diagonal.
+   */
+  function drawVoidWatermark(doc, pageW, pageH) {
+    const size = 150;
+    setFont(doc, size, 'bold', DANGER);
+    const angle = Math.atan2(pageH, pageW);           // radians, bottom-left to top-right
+    const w = doc.getTextWidth('VOID');
+    const capH = size * PT_TO_MM * 0.72;
+    // jsPDF rotates text about its start point, so offset the start to centre the word.
+    const x = pageW / 2 - (w / 2) * Math.cos(angle) + (capH / 2) * Math.sin(angle);
+    const y = pageH / 2 + (w / 2) * Math.sin(angle) + (capH / 2) * Math.cos(angle);
+    const seeThrough = typeof doc.GState === 'function';
+    if (seeThrough) doc.setGState(new doc.GState({ opacity: 0.18 }));
+    doc.text('VOID', x, y, { angle: angle * 180 / Math.PI });
+    if (seeThrough) doc.setGState(new doc.GState({ opacity: 1 }));
+  }
+
   function build(r, logo, pageSize) {
     const { jsPDF } = window.jspdf;
     const fmt = money.formatCents;
@@ -126,10 +146,14 @@
       ['Date', receipt.formatDate(r.date)],
       ['Payment', receipt.paymentLabel(r.paymentMethod)],
     ];
+    if (r.voided) {
+      meta.push(['Status', 'VOID']);
+      if (r.voidedAt) meta.push(['Voided', receipt.formatDate(r.voidedAt)]);
+    }
     for (const [label, value] of meta) {
       setFont(doc, 9, 'normal', MUTED);
       doc.text(label, META_X, rightY, { baseline: 'top' });
-      setFont(doc, 9, 'bold');
+      setFont(doc, 9, 'bold', label === 'Status' ? DANGER : TEXT);
       doc.text(String(value), R, rightY, { align: 'right', baseline: 'top' });
       rightY += 5.5;
     }
@@ -239,6 +263,7 @@
       setFont(doc, 8, 'normal', MUTED);
       doc.text(r.number, M, pageH - 8);
       if (pages > 1) doc.text('Page ' + p + ' of ' + pages, R, pageH - 8, { align: 'right' });
+      if (r.voided) drawVoidWatermark(doc, pageW, pageH);
     }
 
     return doc;

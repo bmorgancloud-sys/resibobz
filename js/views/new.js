@@ -277,7 +277,7 @@
         const saved = await db.saveNewDocument('receipt', record);
         draft = newDraft();
         toast('Saved ' + saved.number);
-        location.hash = '#/history/' + saved.id;
+        location.hash = '#/receipt/' + saved.id + '/saved';
       } catch (err) {
         console.error(err);
         toast('Could not save: ' + err.message);

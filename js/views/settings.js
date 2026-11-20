@@ -1,6 +1,7 @@
 /*
  * views/settings.js: business details, logo, GST rate, numbering, PDF page size, footer note,
- * and a Developer card to load demo data (js/demo.js).
+ * Backup (export/import, js/backup.js) and a Developer card to load demo data (js/demo.js).
+ * #/settings/backup scrolls to the Backup card.
  */
 (function () {
   'use strict';
@@ -46,6 +47,79 @@
     } finally {
       URL.revokeObjectURL(url);
     }
+  }
+
+  /**
+   * Backup card: export everything to a JSON file, or replace everything from one.
+   * The file is fully checked before anything is written, and the import is one
+   * transaction, so a bad file never changes existing data.
+   */
+  function backupSection(ctx, lastBackupAt) {
+    const last = h('p', { class: 'field-hint' });
+    const showLast = (iso) => { last.textContent = 'Last backup: ' + (iso ? receipt.formatDateTime(iso) : 'never'); };
+    showLast(lastBackupAt);
+
+    const err = h('p', { class: 'field-error', hidden: true, role: 'alert' });
+    const showError = (msg) => { err.textContent = msg; err.hidden = !msg; };
+
+    const exportBtn = h('button', { type: 'button', class: 'btn btn-block' }, 'Export backup');
+    exportBtn.addEventListener('click', async () => {
+      showError('');
+      exportBtn.disabled = true;
+      try {
+        const now = new Date();
+        const data = await backup.collect(now);
+        ui.download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), backup.fileName(now));
+        await db.setSetting('lastBackupAt', now.toISOString());
+        showLast(now.toISOString());
+        toast('Backup saved to your downloads');
+      } catch (e) {
+        console.error(e);
+        showError('Could not export: ' + e.message);
+      } finally {
+        exportBtn.disabled = false;
+      }
+    });
+
+    const file = h('input', { type: 'file', accept: 'application/json,.json', class: 'file-input', id: 'backup-file' });
+    const pick = h('label', { class: 'btn btn-secondary btn-block', for: 'backup-file' }, 'Import backup');
+    file.addEventListener('change', async () => {
+      const f = file.files[0];
+      file.value = '';
+      if (!f) return;
+      showError('');
+      let data;
+      try {
+        data = backup.parse(await f.text());
+      } catch (e) {
+        showError('Could not import "' + f.name + '": ' + e.message + ' Your data was not changed.');
+        return;
+      }
+      const ok = await ui.confirm(
+        'This backup has ' + backup.summary(data) + '. Replace all data on this device with it? ' +
+        'Everything here now (receipts, products, customers, settings and logo) will be replaced.',
+        { okText: 'Replace all data', danger: true });
+      if (!ok) return;
+      try {
+        await backup.restore(data);
+      } catch (e) {
+        console.error(e);
+        showError('Import failed: ' + e.message + ' Your data was not changed.');
+        return;
+      }
+      toast('Backup imported');
+      ctx.el.replaceChildren();
+      await render(ctx);
+    });
+
+    return h('section', { class: 'card', id: 'backup' },
+      h('h2', null, 'Backup'),
+      h('p', { class: 'field-hint backup-intro' },
+        'Your data lives only on this device. Export a backup regularly and keep it somewhere safe (e.g. Google Drive or WhatsApp to yourself).'),
+      h('div', { class: 'form-actions' }, exportBtn, file, pick),
+      last,
+      err,
+      h('p', { class: 'field-hint' }, 'Importing replaces all data on this device. Unsaved changes on this screen will be lost.'));
   }
 
   /** Developer card: load sample data after confirming, then re-render to show it. */
@@ -231,11 +305,15 @@
           h('p', { class: 'field-hint', id: 'page-size-hint' },
             'Match the paper you print on. Applies to every PDF, including past receipts.')),
         field('Footer note', footer, { hint: 'Printed at the bottom of receipts.' })),
+      backupSection(ctx, s.lastBackupAt),
       developerSection(ctx),
       h('div', { class: 'sticky-bar' },
         h('button', { type: 'submit', class: 'btn btn-block' }, 'Save settings')));
 
     el.append(form);
+    if (ctx.params && ctx.params[0] === 'backup') {
+      requestAnimationFrame(() => document.getElementById('backup').scrollIntoView({ block: 'start' }));
+    }
   }
 
   (window.Views = window.Views || {}).settings = { render };

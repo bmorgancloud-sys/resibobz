@@ -56,14 +56,16 @@ sw.js               Service worker (offline cache)
 css/app.css         All styles
 js/money.js         Cents / qty / GST-rate parsing, formatting and GST maths (pure, unit-tested)
 js/receipt.js       Receipt record builder, WhatsApp summary/link, file names (pure, unit-tested)
+js/filter.js        History search/date/status filters, count + total, backup reminder (pure, unit-tested)
+js/backup.js        Backup file build/validate/summary/counters (pure, unit-tested) + collect()/restore() via db.js
 js/db.js            IndexedDB wrapper (the only file that touches IndexedDB)
-js/ui.js            DOM helpers: h(), field(), toast(), confirm()
+js/ui.js            DOM helpers: h(), field(), toast(), confirm(), ask() (confirm + optional text), download()
 js/typeahead.js     Suggestion matching (pure, unit-tested) + combobox for picking saved products/customers
 js/pdf.js           Letter/A4 receipt PDF (lazy-loads /lib on first use)
 js/demo.js          Sample data for Settings > Developer > Load demo data (plan() is pure, unit-tested)
 js/update.js        Service worker registration + automatic reload when an update takes control
 js/app.js           Router, nav, view rendering
-js/views/*.js       One file per tab: new, history, products, customers, settings
+js/views/*.js       One file per tab: new, history, products, customers, settings; plus receipt (detail, #/receipt/<id>)
 lib/                Vendored third-party libs (jsPDF, autotable); versions in lib/README.md
 icons/              App icons: icon.svg (source), 192/512 PNGs, maskable 512 PNG (from icon-maskable.svg)
 tests/              node:test unit tests for the pure modules
@@ -71,7 +73,7 @@ tests/browser/      *.e2e.js: headless-Chrome tests of the real app (no npm; dri
 ```
 
 Keep files small and single-purpose. Add new files under `js/` instead of growing `app.js`.
-Script load order in `index.html` matters: money, receipt, db, ui, typeahead, pdf, demo, views, update, then app.
+Script load order in `index.html` matters: money, receipt, filter, backup, db, ui, typeahead, pdf, demo, views, update, then app.
 
 ## Updates
 
@@ -84,7 +86,10 @@ install never reloads.
 ## Navigation
 
 Bottom nav with five tabs: **New, History, Products, Customers, Settings**. Hash routing:
-`#/<tab>[/<param>]`, e.g. `#/history/12`, `#/products/new`. Each view registers
+`#/<tab>[/<param>]`, e.g. `#/receipt/12`, `#/products/new`. Non-tab routes set `nav` in `TABS` (app.js)
+to highlight a tab: `#/receipt/<id>` highlights History. Old `#/history/<id>` links redirect to `#/receipt/<id>`.
+New Receipt saves to `#/receipt/<id>/saved` (shows "Saved. View in History" once, then drops `/saved`).
+`#/settings/backup` scrolls to the Backup card. Each view registers
 `window.Views[<tab>] = { render(ctx) }` with `ctx = { el, params, setTitle }`.
 
 ## Receipts
@@ -97,6 +102,34 @@ Bottom nav with five tabs: **New, History, Products, Customers, Settings**. Hash
   offered as type-ahead on New Receipt. Picking a product fills description, price and zero-rated;
   picking a customer fills name, phone, TIN and address.
 - Payment methods: `cash`, `card`, `transfer`.
+- The detail screen shows a USD total at the fixed peg BZD 2 = USD 1 (`money.bzdToUsdCents`). Display only, never stored.
+- There is no per-receipt notes field; the detail screen shows the footer note snapshot as "Note".
+
+## Void
+
+- **Receipts are never deleted.** `db.voidReceipt(id, reason)` sets `voided: true`, `voidedAt`, `voidReason`.
+  Voiding is one-way; the number is never reused.
+- Voided receipts stay in History (red VOID badge, total struck through) and are left out of every total
+  (`filter.summarize`). Any future report must skip `r.voided` too.
+- The PDF of a voided receipt has a see-through diagonal "VOID" watermark on every page and a Status: VOID row.
+
+## History search
+
+Logic in `js/filter.js`. One search box (200ms debounce) matches number (digits, so "0012" and "R-0012" both
+find INV-0012), customer name, phone (3+ digits) and amount ("45" = $45.00 to $45.99). Date presets
+Today / This week (Monday start) / This month / All / Custom (inclusive From/To). Status All / Active / Voided.
+
+## Backup
+
+- Settings > Backup. Export downloads `resibobz-backup-YYYY-MM-DD.json`:
+  `{ app: "ResiboBZ", schemaVersion: 1, exportedAt, settings (incl. logo data URL), counters: {receipt, quote},
+  products, customers, receipts, quotes }`. Records keep their ids. `lastBackupAt` is per device, not exported.
+- Import: `backup.parse` validates everything first, then the user confirms "Replace all data".
+  `db.replaceAll` clears and writes all stores in **one transaction**, so a bad file or an error part-way
+  leaves the old data untouched. Counters become max(file counter, highest imported number).
+- **If you change the record shapes, bump `backup.SCHEMA_VERSION`**, keep reading the old version in
+  `parse` (add it to `SUPPORTED_VERSIONS`, migrate on import), and add a test.
+- History shows a reminder when there are receipts and no backup in 7 days (`lastBackupAt` setting).
 
 ## PDF and sharing
 
@@ -113,7 +146,7 @@ Bottom nav with five tabs: **New, History, Products, Customers, Settings**. Hash
 
 1. `node --check` on every project JS file (everything except `lib/`).
 2. `node --test tests/`. All tests must pass.
-   Touched New Receipt, the type-ahead, `update.js` or `sw.js`? Also run `node --test "tests/browser/*.e2e.js"`
+   Touched New Receipt, the type-ahead, History, receipt detail, backup, `update.js` or `sw.js`? Also run `node --test "tests/browser/*.e2e.js"`
    (needs Chrome; set `CHROME=` if it isn't in the default install path).
 3. Changed any file the service worker caches? Bump `CACHE_VERSION` in `sw.js`. Added/renamed one? Also add it to `ASSETS`.
 
@@ -125,6 +158,8 @@ Bottom nav with five tabs: **New, History, Products, Customers, Settings**. Hash
   Also: basic Products and Customers lists (used as suggestions) and a History list + receipt detail.
 - **Phase 2 (done):** Products (name, price, zero-rated; add/edit/delete), Customers (name, phone, email,
   TIN optional), type-ahead picking of saved products and customers on New Receipt.
+- **Phase 3 (done):** History list with search and date/status filters, receipt detail with void
+  (never delete) and VOID PDF watermark, JSON backup export/import with a 7-day reminder.
 - Later phases are defined as we go. Do only the phase asked for.
 
 ## Running locally

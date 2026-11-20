@@ -133,12 +133,23 @@
     return out;
   }
 
+  // ---- USD ----
+
+  /** The Belize dollar is pegged at BZD 2 = USD 1. */
+  const BZD_PER_USD = 2;
+
+  /** BZD cents -> USD cents at the fixed peg, rounded half away from zero. Display only. */
+  function bzdToUsdCents(bzdCents) {
+    return roundDiv(bzdCents, BZD_PER_USD);
+  }
+
   const api = {
     roundDiv,
     parseCents, formatCents, centsToInput,
     parseQty, formatQty,
     parseRate, formatRate,
     gstOn, calcLine, calcTotals,
+    BZD_PER_USD, bzdToUsdCents,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

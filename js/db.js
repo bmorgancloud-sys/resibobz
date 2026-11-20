@@ -23,6 +23,7 @@
     numberPadding: 4,
     counter_receipt: 0,       // last number issued
     counter_quote: 0,
+    lastBackupAt: null,       // ISO time of the last export/import on this device
   };
 
   let dbPromise = null;
@@ -210,22 +211,84 @@
     return { ...doc, id };
   }
 
+  // ---- Void ----
+
+  /**
+   * Mark a receipt void. Never deletes it, and its number is never reused.
+   * Voiding twice keeps the first voidedAt/voidReason. Returns the updated record.
+   */
+  async function voidReceipt(id, reason = '', now = new Date()) {
+    const idb = await open();
+    const tx = idb.transaction('receipts', 'readwrite');
+    const store = tx.objectStore('receipts');
+    const r = await promisify(store.get(id));
+    if (!r) { tx.abort(); throw new Error('Receipt not found'); }
+    if (!r.voided) {
+      r.voided = true;
+      r.voidedAt = now.toISOString();
+      r.voidReason = String(reason || '').trim();
+      store.put(r);
+    }
+    await txDone(tx);
+    return r;
+  }
+
   // ---- Backup ----
 
-  /** Dump every store to a plain object (for export/backup). */
-  async function exportAll() {
-    const out = { app: 'ResiboBZ', dbVersion: DB_VERSION, exportedAt: new Date().toISOString() };
-    for (const store of STORES) out[store] = await getAll(store);
-    return out;
+  /** Everything in the database: { settings (merged over defaults), products, customers, receipts, quotes }. */
+  async function dumpAll() {
+    const idb = await open();
+    const tx = idb.transaction(STORES, 'readonly');
+    const [settingRows, products, customers, receipts, quotes] = await Promise.all(
+      STORES.map((name) => promisify(tx.objectStore(name).getAll())));
+    await txDone(tx);
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    for (const r of settingRows) settings[r.key] = r.value;
+    return { settings, products, customers, receipts, quotes };
+  }
+
+  /**
+   * Replace ALL data in one transaction (backup import). If anything fails (e.g. a duplicate
+   * receipt number), the transaction aborts and the existing data is left exactly as it was.
+   * data = { settings, counters: { receipt, quote }, products, customers, receipts, quotes, lastBackupAt }
+   * Unknown setting keys are ignored; missing ones get their defaults.
+   */
+  async function replaceAll(data) {
+    const idb = await open();
+    const tx = idb.transaction(STORES, 'readwrite');
+    const done = txDone(tx);
+    try {
+      for (const name of STORES) tx.objectStore(name).clear();
+      const settings = tx.objectStore('settings');
+      for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+        const v = Object.prototype.hasOwnProperty.call(data.settings || {}, key) ? data.settings[key] : value;
+        settings.put({ key, value: v });
+      }
+      for (const type of Object.keys(DOC_TYPES)) {
+        settings.put({ key: 'counter_' + type, value: (data.counters && data.counters[type]) || 0 });
+      }
+      settings.put({ key: 'lastBackupAt', value: data.lastBackupAt || null });
+      for (const name of ['products', 'customers', 'receipts', 'quotes']) {
+        const store = tx.objectStore(name);
+        for (const record of data[name] || []) store.add(record);
+      }
+    } catch (err) {
+      try { tx.abort(); } catch {}
+      await done.catch(() => {});
+      throw err;
+    }
+    await done;
   }
 
   window.db = {
+    DB_VERSION,
     STORES,
     DEFAULT_SETTINGS,
     open,
     get, getAll, getAllByIndex, count, put, remove, clear,
     getSetting, setSetting, setSettings, getSettings, ensureDefaults,
     nextNumber, saveNewDocument,
-    exportAll,
+    voidReceipt,
+    dumpAll, replaceAll,
   };
 })();
