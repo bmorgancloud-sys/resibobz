@@ -16,6 +16,9 @@
   const BRAND = [11, 92, 171];
   const RULE = [221, 226, 234];
   const PT_TO_MM = 0.3528;
+  const LOGO_MAX_W = 40;             // logo box, mm; the image is scaled to fit, never stretched
+  const LOGO_MAX_H = 28;
+  const LOGO_GAP = 5;                // space between logo and business details
 
   let loading = null;
 
@@ -58,6 +61,26 @@
     doc.setTextColor(...color);
   }
 
+  /**
+   * Draw the logo at (x, y), scaled to fit LOGO_MAX_W x LOGO_MAX_H mm with its aspect ratio kept.
+   * Returns the drawn size { w, h } in mm, or null when there is no logo or it can't be drawn.
+   */
+  function drawLogo(doc, logo, x, y) {
+    if (!logo || !logo.dataUrl) return null;
+    try {
+      let { width, height } = logo;
+      if (!(width > 0 && height > 0)) ({ width, height } = doc.getImageProperties(logo.dataUrl));
+      const scale = Math.min(LOGO_MAX_W / width, LOGO_MAX_H / height);
+      const w = width * scale;
+      const h = height * scale;
+      doc.addImage(logo.dataUrl, logo.format || 'PNG', x, y, w, h);
+      return { w, h };
+    } catch (err) {
+      console.warn('Logo could not be added to PDF', err);
+      return null;
+    }
+  }
+
   function build(r, logo) {
     const { jsPDF } = window.jspdf;
     const fmt = money.formatCents;
@@ -68,31 +91,25 @@
     doc.setProperties({ title: 'Receipt ' + r.number, subject: b.name || 'Receipt', creator: 'ResiboBZ' });
     doc.setLineHeightFactor(1.25);
 
-    // ---- Left: logo + business ----
-    let leftY = M;
-    if (logo && logo.dataUrl) {
-      const scale = Math.min(45 / logo.width, 24 / logo.height);
-      const w = logo.width * scale;
-      const hgt = logo.height * scale;
-      try {
-        doc.addImage(logo.dataUrl, logo.format, M, M, w, hgt);
-        leftY = M + hgt + 4;
-      } catch (err) {
-        console.warn('Logo could not be added to PDF', err);
-      }
-    }
+    const R = PAGE_W - M;
+    const META_X = R - 58;           // left edge of the receipt meta labels
+
+    // ---- Left: logo, then business details beside it ----
+    const logoBox = drawLogo(doc, logo, M, M);
+    const textX = logoBox ? M + logoBox.w + LOGO_GAP : M;
+    const textW = META_X - 6 - textX;
     setFont(doc, 13, 'bold');
-    leftY = textBlock(doc, b.name, M, leftY, { maxWidth: 100 });
+    let leftY = textBlock(doc, b.name, textX, M, { maxWidth: textW });
     setFont(doc, 9, 'normal', MUTED);
-    leftY = textBlock(doc, b.address, M, leftY + 1, { maxWidth: 100 });
-    leftY = textBlock(doc, [b.phone, b.email].filter(Boolean).join('  ·  '), M, leftY, { maxWidth: 100 });
+    leftY = textBlock(doc, b.address, textX, leftY + 1, { maxWidth: textW });
+    leftY = textBlock(doc, [b.phone, b.email].filter(Boolean).join('  ·  '), textX, leftY, { maxWidth: textW });
     if (b.gstTin) {
       setFont(doc, 9, 'bold');
-      leftY = textBlock(doc, 'GST TIN: ' + b.gstTin, M, leftY + 1, { maxWidth: 100 });
+      leftY = textBlock(doc, 'GST TIN: ' + b.gstTin, textX, leftY + 1, { maxWidth: textW });
     }
+    if (logoBox) leftY = Math.max(leftY, M + logoBox.h);
 
     // ---- Right: title + meta ----
-    const R = PAGE_W - M;
     setFont(doc, 22, 'bold', BRAND);
     doc.text('RECEIPT', R, M, { align: 'right', baseline: 'top' });
     let rightY = M + 12;
@@ -103,7 +120,7 @@
     ];
     for (const [label, value] of meta) {
       setFont(doc, 9, 'normal', MUTED);
-      doc.text(label, R - 58, rightY, { baseline: 'top' });
+      doc.text(label, META_X, rightY, { baseline: 'top' });
       setFont(doc, 9, 'bold');
       doc.text(String(value), R, rightY, { align: 'right', baseline: 'top' });
       rightY += 5.5;

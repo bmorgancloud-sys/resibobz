@@ -63,7 +63,7 @@
 
     // ---- Line items ----
     const linesEl = h('div');
-    const totalsEl = h('table', { class: 'totals' });
+    const totalsEl = h('div', { class: 'sticky-totals' });
 
     function renderLines() {
       linesEl.replaceChildren(...draft.lines.map((l, i) => lineCard(l, i)));
@@ -120,7 +120,7 @@
       }, '×');
 
       updateLineTotal();
-      return h('div', { class: 'line-item' },
+      return h('div', { class: 'card line-item' },
         h('div', { class: 'line-item-head' }, h('span', null, 'Item ' + (index + 1)), remove),
         field('Description', desc),
         h('div', { class: 'line-grid' },
@@ -133,15 +133,12 @@
     function updateTotals() {
       const parsed = draft.lines.map(parseLine).filter(Boolean);
       const t = money.calcTotals(parsed, rateBp);
-      const rows = [
-        h('tr', null, h('th', null, 'Subtotal'), h('td', null, money.formatCents(t.subtotalCents))),
-        t.zeroRatedCents
-          ? h('tr', null, h('th', null, 'Zero-rated / exempt'), h('td', null, money.formatCents(t.zeroRatedCents)))
-          : null,
-        h('tr', null, h('th', null, 'GST (' + rateText + ')'), h('td', null, money.formatCents(t.gstCents))),
-        h('tr', { class: 'grand' }, h('th', null, 'Total'), h('td', null, money.formatCents(t.totalCents))),
-      ];
-      totalsEl.replaceChildren(h('tbody', null, rows));
+      // Compact so the sticky bar stays short on a 360px-wide phone.
+      totalsEl.replaceChildren(
+        h('span', { class: 'sticky-sub' }, 'Subtotal ' + money.formatCents(t.subtotalCents)),
+        h('span', { class: 'sticky-sub' }, 'GST (' + rateText + ') ' + money.formatCents(t.gstCents)
+          + (t.zeroRatedCents ? ' · ' + money.formatCents(t.zeroRatedCents) + ' zero-rated' : '')),
+        h('span', { class: 'sticky-total' }, h('small', null, 'Total '), money.formatCents(t.totalCents)));
     }
 
     const addItem = h('button', {
@@ -167,7 +164,7 @@
       ]));
 
     // ---- Save ----
-    const saveBtn = h('button', { type: 'submit', class: 'btn btn-block' }, 'Save receipt');
+    const saveBtn = h('button', { type: 'submit', class: 'btn' }, 'Save receipt');
 
     async function onSubmit(e) {
       e.preventDefault();
@@ -221,14 +218,13 @@
         h('h2', null, 'Customer'),
         field('Name', custName, { hint: 'Optional. Leave blank for a walk-in sale.' }),
         field('Phone', custPhone, { hint: 'Optional. Used for the WhatsApp link.' })),
-      h('section', { class: 'card' },
-        h('h2', null, 'Items'),
+      h('section', { class: 'items-section' },
+        h('h2', { class: 'section-title' }, 'Items'),
         h('p', { class: 'field-hint items-hint' }, 'Prices exclude GST.'),
         linesEl,
         addItem),
       h('section', { class: 'card' }, payment),
-      h('section', { class: 'card' }, totalsEl),
-      h('div', { class: 'form-actions sticky-actions' }, saveBtn),
+      h('div', { class: 'sticky-bar sticky-bar-split' }, totalsEl, saveBtn),
       productList, customerList);
 
     el.append(form);

@@ -5,28 +5,30 @@
   'use strict';
   const { h, field, setError, toast } = ui;
 
-  const LOGO_MAX_PX = 600;
+  const LOGO_MAX_W = 400;
+  const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
   function previewNumber(prefix, counter, pad) {
     return prefix + String(counter + 1).padStart(pad, '0');
   }
 
   /**
-   * Read an image file, shrink it to at most LOGO_MAX_PX on its longest side,
+   * Read a PNG/JPG/WebP file, shrink it to at most LOGO_MAX_W pixels wide (never enlarge),
    * and return { dataUrl, format, width, height } ready for jsPDF.addImage.
-   * JPEG stays JPEG (smaller); everything else becomes PNG (keeps transparency).
+   * JPEG stays JPEG (smaller). PNG and WebP become PNG, which keeps transparency
+   * and is a format jsPDF can embed.
    */
   async function processLogo(file) {
-    if (!file.type.startsWith('image/')) throw new Error('Choose an image file (PNG or JPG).');
+    if (!LOGO_TYPES.includes(file.type)) throw new Error('Choose a PNG, JPG or WebP image.');
     const url = URL.createObjectURL(file);
     try {
       const img = await new Promise((resolve, reject) => {
         const i = new Image();
         i.onload = () => resolve(i);
-        i.onerror = () => reject(new Error('Could not read that image.'));
+        i.onerror = () => reject(new Error('Could not read that image. Try a PNG or JPG.'));
         i.src = url;
       });
-      const scale = Math.min(1, LOGO_MAX_PX / Math.max(img.naturalWidth, img.naturalHeight));
+      const scale = Math.min(1, LOGO_MAX_W / img.naturalWidth);
       const width = Math.max(1, Math.round(img.naturalWidth * scale));
       const height = Math.max(1, Math.round(img.naturalHeight * scale));
       const canvas = document.createElement('canvas');
@@ -34,9 +36,11 @@
       canvas.height = height;
       const c2d = canvas.getContext('2d');
       const format = file.type === 'image/jpeg' ? 'JPEG' : 'PNG';
+      // A canvas starts fully transparent; only JPEG (no alpha) gets a white backing.
       if (format === 'JPEG') { c2d.fillStyle = '#fff'; c2d.fillRect(0, 0, width, height); }
+      c2d.imageSmoothingQuality = 'high';
       c2d.drawImage(img, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL(format === 'JPEG' ? 'image/jpeg' : 'image/png', 0.88);
+      const dataUrl = format === 'JPEG' ? canvas.toDataURL('image/jpeg', 0.88) : canvas.toDataURL('image/png');
       return { dataUrl, format, width, height };
     } finally {
       URL.revokeObjectURL(url);
@@ -57,13 +61,17 @@
 
     // Logo
     const logoPreview = h('div', { class: 'logo-preview' });
-    const logoFile = h('input', { type: 'file', accept: 'image/*', class: 'file-input', id: 'logo-file' });
-    const logoPick = h('label', { class: 'btn btn-secondary btn-small', for: 'logo-file' }, 'Choose image');
-    const logoRemove = h('button', { type: 'button', class: 'btn btn-danger-outline btn-small' }, 'Remove');
+    const logoFile = h('input', {
+      type: 'file', accept: LOGO_TYPES.join(','), class: 'file-input', id: 'logo-file',
+      'aria-describedby': 'logo-hint',
+    });
+    const logoPick = h('label', { class: 'btn btn-secondary', for: 'logo-file' }, 'Choose image');
+    const logoRemove = h('button', { type: 'button', class: 'btn btn-danger-outline' }, 'Remove logo');
     const logoErr = h('p', { class: 'field-error', hidden: true, role: 'alert' });
 
     function drawLogo() {
-      logoPreview.replaceChildren(logo ? h('img', { src: logo.dataUrl, alt: 'Logo preview' }) : 'No logo');
+      logoPreview.replaceChildren(logo ? h('img', { src: logo.dataUrl, alt: 'Business logo preview' }) : 'No logo');
+      logoPick.textContent = logo ? 'Change image' : 'Choose image';
       logoRemove.hidden = !logo;
     }
     logoFile.addEventListener('change', async () => {
@@ -149,12 +157,15 @@
     const form = h('form', { class: 'form', novalidate: true, onsubmit: onSubmit },
       h('section', { class: 'card' },
         h('h2', null, 'Business'),
-        field('Business name', name, { hint: 'Shown at the top of every receipt.' }),
-        h('div', { class: 'field' },
-          h('span', { class: 'field-label' }, 'Logo'),
-          h('div', { class: 'logo-row' }, logoPreview, logoFile, logoPick, logoRemove),
-          h('p', { class: 'field-hint' }, 'Optional. Printed on the PDF.'),
+        h('div', { class: 'field', role: 'group', 'aria-labelledby': 'logo-label' },
+          h('span', { class: 'field-label', id: 'logo-label' }, 'Business logo'),
+          h('div', { class: 'logo-field' },
+            logoPreview,
+            h('div', { class: 'logo-actions' }, logoFile, logoPick, logoRemove)),
+          h('p', { class: 'field-hint', id: 'logo-hint' },
+            'Optional. PNG, JPG or WebP. Printed at the top left of the PDF. Tap Save settings to keep changes.'),
           logoErr),
+        field('Business name', name, { hint: 'Shown at the top of every receipt.' }),
         field('Address', address),
         field('Phone', phone),
         field('Email', email),
@@ -171,7 +182,7 @@
       h('section', { class: 'card' },
         h('h2', null, 'Receipts'),
         field('Footer note', footer, { hint: 'Printed at the bottom of receipts.' })),
-      h('div', { class: 'form-actions sticky-actions' },
+      h('div', { class: 'sticky-bar' },
         h('button', { type: 'submit', class: 'btn btn-block' }, 'Save settings')));
 
     el.append(form);

@@ -18,6 +18,9 @@
 
 * { box-sizing: border-box; }
 
+/* Author `display` rules (e.g. .btn) would otherwise override the hidden attribute. */
+[hidden] { display: none !important; }
+
 html, body { margin: 0; height: 100%; }
 
 body {
@@ -141,9 +144,10 @@ body {
 }
 .card h2 { margin: 0 0 12px; font-size: 1rem; }
 
-.field { margin-bottom: 14px; }
+/* Mobile-first fields: label on its own line above a full-width control. */
+.field { display: flex; flex-direction: column; margin-bottom: 16px; min-width: 0; }
 .field:last-child { margin-bottom: 0; }
-.field label, .field-label { display: block; font-weight: 600; font-size: 0.875rem; margin-bottom: 4px; }
+.field label, .field-label { display: block; font-weight: 600; font-size: 0.875rem; margin-bottom: 6px; }
 .check .field-hint { display: block; margin: 0; }
 .items-hint { margin: -8px 0 12px; }
 .setup-hint { background: #fff8e1; border-color: #f0d98a; }
@@ -152,9 +156,11 @@ body {
 .field-hint { margin: 4px 0 0; font-size: 0.8125rem; color: var(--muted); }
 .field-error { margin: 4px 0 0; font-size: 0.8125rem; color: var(--danger); font-weight: 600; }
 
-input[type="text"], input[type="tel"], input[type="email"], input[type="search"], select, textarea {
+input[type="text"], input[type="tel"], input[type="email"], input[type="search"],
+input[type="number"], input[type="date"], select, textarea {
+  display: block;
   width: 100%;
-  min-height: var(--tap);
+  min-height: var(--tap); /* 48px: meets the 44px minimum and CLAUDE.md's 48px tap target */
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -178,12 +184,31 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
 .check-label { display: block; font-weight: 600; }
 
 .form-actions { display: grid; gap: 10px; margin-top: 8px; }
-.sticky-actions {
+
+/* Bar pinned just above the bottom nav (Save button, live totals). */
+.sticky-bar {
   position: sticky;
   bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
-  padding: 12px 0;
-  background: linear-gradient(to bottom, transparent, var(--bg) 30%);
+  z-index: 4;
+  margin: 8px -16px 0;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
 }
+.sticky-bar-split { display: flex; align-items: center; gap: 12px; }
+.sticky-bar-split .btn { flex: none; }
+.sticky-totals {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+.sticky-sub { font-size: 0.8125rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sticky-total { font-size: 1.25rem; font-weight: 700; white-space: nowrap; }
+.sticky-total small { font-size: 0.875rem; font-weight: 600; color: var(--muted); }
 .calc-line { margin: -6px 0 14px; font-size: 0.875rem; color: var(--muted); }
 
 /* Segmented radio group (payment method) */
@@ -200,29 +225,37 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
 .segmented input:focus-visible + label { outline: 2px solid var(--brand); outline-offset: 2px; }
 
 /* Logo */
-.logo-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.logo-field { display: flex; align-items: center; gap: 12px; }
 .logo-preview {
-  width: 96px; height: 64px;
+  flex: none;
+  width: 112px; height: 80px;
   border: 1px dashed var(--border); border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
   color: var(--muted); font-size: 0.75rem;
-  background: #fff;
+  /* Checkerboard so transparent PNG logos read as transparent */
+  background: #fff repeating-conic-gradient(#eef1f5 0% 25%, #fff 0% 50%) 50% / 16px 16px;
   overflow: hidden;
 }
-.logo-preview img { max-width: 100%; max-height: 100%; }
+.logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.logo-actions { flex: 1; min-width: 0; display: grid; gap: 8px; }
 .file-input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.file-input:focus-visible + label { outline: 3px solid var(--text); outline-offset: 2px; }
 
-/* Line items */
-.line-item {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 12px;
-}
-.line-item-head { display: flex; align-items: center; justify-content: space-between; margin: -4px -4px 4px 0; }
+/* Line items: one card per item */
+.section-title { margin: 0 0 4px; font-size: 1rem; }
+.items-section { margin-bottom: 16px; }
+.items-section .items-hint { margin: 0 0 12px; }
+.line-item { margin-bottom: 12px; padding: 12px 16px 16px; }
+.line-item-head { display: flex; align-items: center; justify-content: space-between; margin: -4px -8px 4px 0; }
 .line-item-head span { font-weight: 600; font-size: 0.875rem; color: var(--muted); }
-.line-grid { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
-.line-total { margin-top: 4px; text-align: right; font-size: 0.875rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.line-grid { display: grid; grid-template-columns: 1fr; gap: 0 12px; }
+.line-grid .field { margin-bottom: 16px; }
+.line-total { margin: 4px 0 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Wider screens: Qty and Unit price side by side */
+@media (min-width: 560px) {
+  .line-grid { grid-template-columns: 1fr 1.4fr; }
+}
 
 /* Totals */
 .totals { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
