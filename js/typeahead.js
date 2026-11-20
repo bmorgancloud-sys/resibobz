@@ -94,6 +94,9 @@
         input.after(listbox);
         input.parentElement.classList.add('typeahead-host');
       }
+      // Pin the list right under the input. Without an explicit top, an absolute child of a
+      // flex column (.field) sits at the top of the field and covers the label and input.
+      listbox.style.top = (input.offsetTop + input.offsetHeight) + 'px';
       active = -1;
       listbox.replaceChildren(...results.map((item, i) =>
         h('li', { id: id + '-' + i, class: 'typeahead-option', role: 'option', 'aria-selected': 'false',

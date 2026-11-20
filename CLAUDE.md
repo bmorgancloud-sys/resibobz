@@ -65,6 +65,7 @@ js/views/*.js       One file per tab: new, history, products, customers, setting
 lib/                Vendored third-party libs (jsPDF, autotable); versions in lib/README.md
 icons/              App icons: icon.svg (source), 192/512 PNGs, maskable 512 PNG (from icon-maskable.svg)
 tests/              node:test unit tests for the pure modules
+tests/browser/      *.e2e.js: headless-Chrome tests of the real app (no npm; drives Chrome over CDP)
 ```
 
 Keep files small and single-purpose. Add new files under `js/` instead of growing `app.js`.
@@ -102,6 +103,8 @@ Bottom nav with five tabs: **New, History, Products, Customers, Settings**. Hash
 
 1. `node --check` on every project JS file (everything except `lib/`).
 2. `node --test tests/`. All tests must pass.
+   Touched New Receipt or the type-ahead? Also run `node --test tests/browser/new-receipt.e2e.js`
+   (needs Chrome; set `CHROME=` if it isn't in the default install path).
 3. Changed any file the service worker caches? Bump `CACHE_VERSION` in `sw.js`. Added/renamed one? Also add it to `ASSETS`.
 
 ## Phases

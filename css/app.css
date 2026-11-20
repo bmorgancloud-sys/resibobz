@@ -347,7 +347,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
 /* Type-ahead suggestions (New Receipt: products, customers) */
 .typeahead-host { position: relative; }
 .typeahead-list {
-  position: absolute; /* no top: sits right under the input, its static position */
+  position: absolute; /* top is set in typeahead.js to the input's bottom edge */
   left: 0; right: 0;
   z-index: 6; /* above the sticky totals bar */
   max-height: 264px; /* ~4.5 rows, so it's clear the list scrolls */
