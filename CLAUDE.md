@@ -70,6 +70,8 @@ lib/                Vendored third-party libs (jsPDF, autotable); versions in li
 icons/              App icons: icon.svg (source), 192/512 PNGs, maskable 512 PNG (from icon-maskable.svg)
 tests/              node:test unit tests for the pure modules
 tests/browser/      *.e2e.js: headless-Chrome tests of the real app (no npm; drives Chrome over CDP)
+start.bat           Windows double-click launcher for the dev server
+tools/server.js     Dev static server (Node built-ins, port 3000). Not loaded by the app, not cached by sw.js
 ```
 
 Keep files small and single-purpose. Add new files under `js/` instead of growing `app.js`.
@@ -164,14 +166,24 @@ Today / This week (Monday start) / This month / All / Custom (inclusive From/To)
 
 ## Running locally
 
-Service workers need `http://localhost`, not `file://`. On Windows, double-click `start.bat`
-(or run it from a terminal): it starts the server in its own "ResiboBZ server" window and opens
-http://localhost:3000 in the default browser. If the server is already running it just opens the
-browser. Close that window to stop the server. Elsewhere, or by hand:
+Service workers need `http://localhost`, not `file://`. The dev server is `tools/server.js`: Node built-ins
+only (no npm, works offline), serves the project root on port 3000 (localhost only), sends
+`Cache-Control: no-cache`, and opens the default browser.
+
+**Windows:** double-click `start.bat`. It `cd`s to its own folder and runs this, with Node's full path
+(PATH isn't reliable on double-click):
 
 ```
-npx serve . -l 3000
+"C:\Program Files\nodejs\node.exe" tools\server.js 3000
 ```
 
-Then open http://localhost:3000. Note `serve` redirects `/index.html` to `/index`, so the app and
-service worker always refer to the shell as `./`.
+That window is titled "ResiboBZ server" and prints "Server running - keep this window open". Close it
+(or press Ctrl+C) to stop the server. If Node isn't at that path, start.bat tries `where node.exe`, then
+`%LOCALAPPDATA%\Programs\nodejs`. If ResiboBZ is already running on 3000, it just opens the browser and
+closes. On any error (Node missing, port 3000 used by another program) it prints the reason and pauses.
+Keep `start.bat` CRLF (`.gitattributes` enforces it); Git Bash's `grep`/`sed` hide the CRs.
+
+**Elsewhere / by hand:** from the project root run `node tools/server.js [port]`, then open
+http://localhost:3000. Set `RESIBOBZ_NO_OPEN=1` to skip opening the browser. The app and service
+worker refer to the shell as `./`, never `index.html` (some static servers redirect it).
+
