@@ -104,6 +104,8 @@ for (const width of WIDTHS) {
       ['#/quote/' + ids.quote, 'Quote detail (expired)'],
       ['#/quote/' + ids.quote + '/edit', 'Quote editor (edit)'],
       ['#/quote/new', 'Quote editor (new)'],
+      ['#/summary/' + require('../../js/summary.js').dayOf(new Date()), 'Daily summary (demo data)'],
+      ['#/summary/2020-01-01', 'Daily summary (empty)'],
     ];
     for (const [hash, what] of routes) {
       await visit(hash);

@@ -2,7 +2,7 @@
  * Service worker: cache-first offline shell.
  * When you add or rename a file the app loads, add it to ASSETS and bump CACHE_VERSION.
  */
-const CACHE_VERSION = 'resibobz-v18';
+const CACHE_VERSION = 'resibobz-v19';
 
 // Use './' for the shell, never 'index.html': some static servers redirect
 // /index.html, and a cached redirect breaks offline navigation.
@@ -13,6 +13,7 @@ const ASSETS = [
   'js/money.js',
   'js/receipt.js',
   'js/filter.js',
+  'js/summary.js',
   'js/quote.js',
   'js/backup.js',
   'js/db.js',
@@ -26,6 +27,7 @@ const ASSETS = [
   'js/views/new.js',
   'js/views/history.js',
   'js/views/receipt.js',
+  'js/views/summary.js',
   'js/views/quotes.js',
   'js/views/quote.js',
   'js/views/quote-edit.js',
@@ -35,6 +37,7 @@ const ASSETS = [
   'js/update.js',
   'js/app.js',
   'icons/icon.svg',
+  'icons/icon-180.png',
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/icon-maskable-512.png',
@@ -42,13 +45,25 @@ const ASSETS = [
   'lib/jspdf.plugin.autotable.min.js',
 ];
 
+// Installs up to resibobz-v18 run an update.js that has no "tap to reload" prompt and never sends
+// SKIP_WAITING, so a waiting worker would sit there until every tab closed. Take over from those
+// once; their update.js then reloads the page when it is safe.
+const LEGACY_CACHE = /^resibobz-v([1-9]|1[0-8])$/;
+
+// A new version installs, then waits: js/update.js shows "Update available, tap to reload"
+// and posts SKIP_WAITING when the user taps it. The first install has nothing to wait for.
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_VERSION)
       // cache: 'reload' bypasses the HTTP cache so a new version never caches stale files.
       .then((cache) => cache.addAll(ASSETS.map((url) => new Request(url, { cache: 'reload' }))))
-      .then(() => self.skipWaiting())
+      .then(() => caches.keys())
+      .then((keys) => { if (keys.some((k) => LEGACY_CACHE.test(k))) return self.skipWaiting(); })
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {

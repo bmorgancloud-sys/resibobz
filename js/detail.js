@@ -55,10 +55,12 @@
    * Returns { nodes, start }: append nodes, then await start(), which builds the PDF up front so
    * Share runs straight from the tap (Web Share needs the user's tap to still be "fresh").
    * shareText: the short text sent along with the file.
+   * Other documents (the Daily Summary) pass r = null with fileName, makeBlob() and waText.
    */
-  function sharePanel(r, { shareTitle, shareText }) {
-    const fileName = receipt.pdfFileName(r);
-    const waUrl = receipt.whatsappUrl(r.customer && r.customer.phone, receipt.summaryText(r));
+  function sharePanel(r, { shareTitle, shareText, fileName, makeBlob, waText }) {
+    fileName = fileName || receipt.pdfFileName(r);
+    makeBlob = makeBlob || (() => pdf.documentBlob(r));
+    const waUrl = r ? receipt.whatsappUrl(r.customer && r.customer.phone, receipt.summaryText(r)) : receipt.whatsappUrl('', waText || shareText);
 
     const shareBtn = h('button', { type: 'button', class: 'btn btn-block', disabled: true }, 'Preparing PDF…');
     const downloadBtn = h('button', { type: 'button', class: 'btn btn-secondary btn-block', disabled: true }, 'Download PDF');
@@ -69,7 +71,7 @@
     async function start() {
       let file;
       try {
-        const blob = await pdf.documentBlob(r);
+        const blob = await makeBlob();
         file = new File([blob], fileName, { type: 'application/pdf' });
       } catch (err) {
         console.error(err);

@@ -114,25 +114,13 @@
     if (seeThrough) doc.setGState(new doc.GState({ opacity: 1 }));
   }
 
-  function build(r, logo, pageSize) {
-    const { jsPDF } = window.jspdf;
-    const fmt = money.formatCents;
-    const rateText = money.formatRate(r.gstRateBp) + '%';
-    const b = r.business || {};
-    const page = PAGE_SIZES[pageSize] || PAGE_SIZES[DEFAULT_PAGE_SIZE];
-    const pageW = page.w;
-    const pageH = page.h;
-
-    const isQuote = r.type === 'quote';
-    const kind = isQuote ? 'Quotation' : 'Receipt';
-    const watermark = r.voided ? 'VOID' : isQuote && r.cancelledAt ? 'CANCELLED' : null;
-
-    const doc = new jsPDF({ unit: 'mm', format: page.format });
-    doc.setProperties({ title: kind + ' ' + r.number, subject: b.name || kind, creator: 'ResiboBZ' });
-    doc.setLineHeightFactor(1.25);
-
+  /**
+   * Page header shared by every document: logo + business details + GST TIN on the left,
+   * big title and [label, value] meta rows on the right. Returns the y below the taller side.
+   */
+  function drawHeader(doc, { b, logo, title, meta, pageW }) {
     const R = pageW - M;
-    const META_X = R - 58;           // left edge of the receipt meta labels
+    const META_X = R - 58;           // left edge of the meta labels
 
     // ---- Left: logo, then business details beside it ----
     const logoBox = drawLogo(doc, logo, M, M);
@@ -151,8 +139,39 @@
 
     // ---- Right: title + meta ----
     setFont(doc, 22, 'bold', BRAND);
-    doc.text(kind.toUpperCase(), R, M, { align: 'right', baseline: 'top' });
+    doc.text(title, R, M, { align: 'right', baseline: 'top' });
     let rightY = M + 12;
+    for (const [label, value] of meta) {
+      setFont(doc, 9, 'normal', MUTED);
+      doc.text(label, META_X, rightY, { baseline: 'top' });
+      setFont(doc, 9, 'bold', label === 'Status' ? DANGER : TEXT);
+      doc.text(String(value), R, rightY, { align: 'right', baseline: 'top' });
+      rightY += 5.5;
+    }
+    return Math.max(leftY, rightY);
+  }
+
+  function newDoc(pageSize, props) {
+    const { jsPDF } = window.jspdf;
+    const page = PAGE_SIZES[pageSize] || PAGE_SIZES[DEFAULT_PAGE_SIZE];
+    const doc = new jsPDF({ unit: 'mm', format: page.format });
+    doc.setProperties({ ...props, creator: 'ResiboBZ' });
+    doc.setLineHeightFactor(1.25);
+    return { doc, pageW: page.w, pageH: page.h };
+  }
+
+  function build(r, logo, pageSize) {
+    const fmt = money.formatCents;
+    const rateText = money.formatRate(r.gstRateBp) + '%';
+    const b = r.business || {};
+
+    const isQuote = r.type === 'quote';
+    const kind = isQuote ? 'Quotation' : 'Receipt';
+    const watermark = r.voided ? 'VOID' : isQuote && r.cancelledAt ? 'CANCELLED' : null;
+
+    const { doc, pageW, pageH } = newDoc(pageSize, { title: kind + ' ' + r.number, subject: b.name || kind });
+    const R = pageW - M;
+
     const meta = isQuote
       ? [
         ['Quote no.', r.number],
@@ -172,16 +191,10 @@
       meta.push(['Status', 'VOID']);
       if (r.voidedAt) meta.push(['Voided', receipt.formatDate(r.voidedAt)]);
     }
-    for (const [label, value] of meta) {
-      setFont(doc, 9, 'normal', MUTED);
-      doc.text(label, META_X, rightY, { baseline: 'top' });
-      setFont(doc, 9, 'bold', label === 'Status' ? DANGER : TEXT);
-      doc.text(String(value), R, rightY, { align: 'right', baseline: 'top' });
-      rightY += 5.5;
-    }
+    const headerY = drawHeader(doc, { b, logo, title: kind.toUpperCase(), meta, pageW });
 
     // ---- Customer ----
-    let y = Math.max(leftY, rightY) + 6;
+    let y = headerY + 6;
     doc.setDrawColor(...RULE);
     doc.setLineWidth(0.3);
     doc.line(M, y, R, y);
@@ -307,6 +320,121 @@
     return doc;
   }
 
+  /** A small label/amount table in the GST-summary style. */
+  function gridTable(doc, startY, head, body, opts = {}) {
+    window.autoTable(doc, {
+      startY,
+      margin: { left: M, right: M, bottom: FOOTER_SPACE },
+      tableWidth: opts.width || 'auto',
+      head: head ? [head] : undefined,
+      body,
+      foot: opts.foot ? [opts.foot] : undefined,
+      showFoot: 'lastPage',
+      theme: 'grid',
+      styles: { font: 'helvetica', fontSize: 9, cellPadding: 1.6, textColor: TEXT, lineColor: RULE, lineWidth: 0.2, overflow: 'linebreak' },
+      headStyles: { fillColor: [244, 246, 249], textColor: MUTED, fontStyle: 'bold' },
+      footStyles: { fillColor: [244, 246, 249], textColor: TEXT, fontStyle: 'bold' },
+      columnStyles: opts.columnStyles || {},
+      didParseCell: (d) => {
+        const right = opts.rightFrom != null ? d.column.index >= opts.rightFrom : d.column.index > 0;
+        if (right) d.cell.styles.halign = 'right';
+      },
+    });
+    return doc.lastAutoTable.finalY;
+  }
+
+  function sectionTitle(doc, text, y, pageH) {
+    if (y + 20 > pageH - FOOTER_SPACE) { doc.addPage(); y = M; }
+    setFont(doc, 8, 'bold', MUTED);
+    doc.text(text.toUpperCase(), M, y, { baseline: 'top' });
+    return y + 4.5;
+  }
+
+  /**
+   * Daily Summary PDF. s = summary.daily(...); b = current business settings.
+   * Totals, GST by rate, payment methods (with a total row that equals the grand total),
+   * then every counted receipt so the figures can be checked against the receipt PDFs.
+   */
+  function buildSummary(s, b, logo, pageSize, now) {
+    const fmt = money.formatCents;
+    b = b || {};
+    const dayText = receipt.formatDay(s.day);
+    const { doc, pageW, pageH } = newDoc(pageSize, { title: 'Daily summary ' + s.day, subject: b.name || 'Daily summary' });
+    const R = pageW - M;
+
+    let y = drawHeader(doc, {
+      b, logo, pageW,
+      title: 'DAILY SUMMARY',
+      meta: [['Date', dayText], ['Receipts', String(s.count)], ['Printed', receipt.formatDateTime(now.toISOString())]],
+    }) + 6;
+    doc.setDrawColor(...RULE);
+    doc.setLineWidth(0.3);
+    doc.line(M, y, R, y);
+    y += 6;
+
+    // ---- Totals ----
+    y = sectionTitle(doc, 'Totals', y, pageH);
+    y = gridTable(doc, y, null, [
+      ['Receipts', String(s.count)],
+      ['Subtotal (excl. GST)', fmt(s.subtotalCents)],
+      ['GST collected', fmt(s.gstCents)],
+    ], { foot: ['Total (BZD)', fmt(s.totalCents)], width: 110, columnStyles: { 1: { cellWidth: 36 } } }) + 6;
+
+    // ---- GST summary ----
+    const gstBody = s.byRate.map((x) => ['Standard rated (' + money.formatRate(x.gstRateBp) + '%)', fmt(x.taxableCents), fmt(x.gstCents)]);
+    if (s.zeroRatedCents) gstBody.push(['Zero-rated / exempt', fmt(s.zeroRatedCents), fmt(0)]);
+    y = sectionTitle(doc, 'GST summary', y, pageH);
+    y = gridTable(doc, y, ['', 'Net', 'GST'], gstBody, {
+      foot: ['Total', fmt(s.subtotalCents), fmt(s.gstCents)],
+      width: 110, columnStyles: { 1: { cellWidth: 30 }, 2: { cellWidth: 26 } },
+    }) + 6;
+
+    // ---- Payment methods ----
+    y = sectionTitle(doc, 'Payment methods', y, pageH);
+    y = gridTable(doc, y, ['Method', 'Receipts', 'Amount'],
+      s.byPayment.map((p) => [p.label, String(p.count), fmt(p.totalCents)]),
+      { foot: ['Total', String(s.count), fmt(s.totalCents)], width: 110, columnStyles: { 1: { cellWidth: 22 }, 2: { cellWidth: 34 } } }) + 6;
+
+    // ---- Receipts ----
+    y = sectionTitle(doc, 'Receipts', y, pageH);
+    y = gridTable(doc, y, ['Receipt', 'Time', 'Customer', 'Payment', 'Subtotal', 'GST', 'Total'],
+      s.receipts.map((r) => [
+        r.number,
+        new Date(r.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase(),
+        (r.customer && r.customer.name) || 'Walk-in',
+        receipt.paymentLabel(r.paymentMethod),
+        fmt(r.subtotalCents), fmt(r.gstCents), fmt(r.totalCents),
+      ]),
+      {
+        foot: ['Total', '', '', '', fmt(s.subtotalCents), fmt(s.gstCents), fmt(s.totalCents)],
+        rightFrom: 4,
+        columnStyles: { 1: { cellWidth: 18 }, 3: { cellWidth: 20 }, 4: { cellWidth: 24 }, 5: { cellWidth: 20 }, 6: { cellWidth: 24 } },
+      });
+
+    if (s.excluded.voided) {
+      y += 6;
+      if (y + 8 > pageH - FOOTER_SPACE) { doc.addPage(); y = M; }
+      setFont(doc, 9, 'normal', MUTED);
+      doc.text(s.excluded.voided + (s.excluded.voided === 1 ? ' voided receipt' : ' voided receipts') + ' not counted. Quotes are never counted.', M, y, { baseline: 'top' });
+    }
+
+    // ---- Footer on every page ----
+    const pages = doc.getNumberOfPages();
+    for (let p = 1; p <= pages; p++) {
+      doc.setPage(p);
+      setFont(doc, 8, 'normal', MUTED);
+      doc.text('Daily summary ' + dayText, M, pageH - 8);
+      if (pages > 1) doc.text('Page ' + p + ' of ' + pages, R, pageH - 8, { align: 'right' });
+    }
+    return doc;
+  }
+
+  /** Daily Summary PDF as a Blob, with the current business details, logo and page size. */
+  async function summaryBlob(s, now = new Date()) {
+    const [, settings] = await Promise.all([ensureLibs(), db.getSettings()]);
+    return buildSummary(s, settings.business, settings.logo, settings.pageSize, now).output('blob');
+  }
+
   /**
    * Build the PDF of a receipt or a quote (r.type === 'quote': titled QUOTATION) and return it as a Blob.
    * Uses the current logo and page size from Settings (neither is snapshotted on the document).
@@ -316,5 +444,5 @@
     return build(r, logo, pageSize).output('blob');
   }
 
-  window.pdf = { ensureLibs, documentBlob, receiptBlob: documentBlob, quoteBlob: documentBlob, PAGE_SIZES };
+  window.pdf = { ensureLibs, documentBlob, summaryBlob, buildSummary, receiptBlob: documentBlob, quoteBlob: documentBlob, PAGE_SIZES };
 })();

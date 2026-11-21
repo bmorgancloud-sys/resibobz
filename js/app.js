@@ -21,6 +21,7 @@
     settings:  { title: 'Settings' },
     receipt:   { title: 'Receipt', nav: 'history' },
     quote:     { title: 'Quote', nav: 'quotes' },   // #/quote/<id>, #/quote/new, #/quote/<id>/edit
+    summary:   { title: 'Daily summary', nav: 'history' }, // #/summary[/YYYY-MM-DD]
   };
   const DEFAULT_TAB = 'new';
 

@@ -93,6 +93,7 @@
     toDay.addEventListener('change', () => { state.toDay = toDay.value; update(); });
 
     el.append(
+      h('a', { class: 'btn btn-secondary btn-block summary-link', href: '#/summary' }, 'Daily summary'),
       h('div', { class: 'filters' }, search, preset, custom, statusGroup),
       summary,
       list);

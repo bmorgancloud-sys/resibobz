@@ -59,28 +59,29 @@ database and checks that the upgrade keeps everything.
 
 ```
 index.html          App shell + bottom nav
-manifest.json       PWA manifest
-sw.js               Service worker (offline cache)
+manifest.json       PWA manifest (id/start_url/scope "./", standalone, 192/512/maskable icons)
+sw.js               Service worker: precaches every app file, cache-first; new versions wait for the update prompt
 css/app.css         All styles
 js/money.js         Cents / qty / GST-rate parsing, formatting and GST maths (pure, unit-tested)
 js/receipt.js       Receipt record builder, WhatsApp summary/link, file names (pure, unit-tested)
 js/quote.js         Quote record builder, computed status, default valid-until (pure, unit-tested)
 js/filter.js        History/Quotes search/date/status filters (statusOf option), count + total, backup reminder (pure, unit-tested)
+js/summary.js       Daily Summary maths: day bounds, totals, by payment method, by GST rate (pure, unit-tested)
 js/backup.js        Backup file build/validate/summary/counters (pure, unit-tested) + collect()/restore() via db.js
 js/db.js            IndexedDB wrapper (the only file that touches IndexedDB)
 js/ui.js            DOM helpers: h(), field(), toast(), confirm(), ask() (confirm + optional text), download(), chipGroup() (scrollable pill radio row)
 js/typeahead.js     Suggestion matching (pure, unit-tested) + combobox for picking saved products/customers
 js/autosave.js      Add a saved document's customer/items to Customers/Products (plan() pure, unit-tested)
 js/editor.js        Shared document editor (customer, lines, live totals, validation, auto-save) for New Receipt and quotes
-js/pdf.js           Letter/A4 receipt and quote PDF (lazy-loads /lib on first use)
-js/detail.js        Shared detail-screen parts: business card, Bill to, lines + totals, Share/Download PDF panel
+js/pdf.js           Letter/A4 receipt, quote and Daily Summary PDF (lazy-loads /lib on first use)
+js/detail.js        Shared detail-screen parts: business card, Bill to, lines + totals, Share/Download PDF panel (also used by the Daily Summary)
 js/demo.js          Sample data for Settings > Developer > Load demo data (plan() is pure, unit-tested)
-js/update.js        Service worker registration + automatic reload when an update takes control
+js/update.js        Service worker registration + "Update available, tap to reload" prompt
 js/app.js           Router, nav, view rendering
 js/views/*.js       One file per tab: new, history, quotes, products, customers, settings; plus receipt (detail,
-                    #/receipt/<id>), quote (detail, #/quote/<id>) and quote-edit (#/quote/new, #/quote/<id>/edit)
+                    #/receipt/<id>), quote (detail, #/quote/<id>) and quote-edit (#/quote/new, #/quote/<id>/edit), summary (#/summary[/YYYY-MM-DD])
 lib/                Vendored third-party libs (jsPDF, autotable); versions in lib/README.md
-icons/              App icons: icon.svg (source), 192/512 PNGs, maskable 512 PNG (from icon-maskable.svg)
+icons/              App icons: icon.svg (source), 180 (apple-touch-icon)/192/512 PNGs, maskable 512 PNG (from icon-maskable.svg)
 tests/              node:test unit tests for the pure modules
 tests/browser/      *.e2e.js: headless-Chrome tests of the real app (no npm; drives Chrome over CDP)
 netlify.toml        Netlify hosting: publish the repo root, no build; no-cache on /, index.html, sw.js
@@ -89,23 +90,26 @@ tools/server.js     Dev static server (Node built-ins, port 3000). Not loaded by
 ```
 
 Keep files small and single-purpose. Add new files under `js/` instead of growing `app.js`.
-Script load order in `index.html` matters: money, receipt, filter, quote, backup, db, ui, typeahead, autosave, editor, pdf, detail, demo, views, update, then app.
+Script load order in `index.html` matters: money, receipt, filter, summary, quote, backup, db, ui, typeahead, autosave, editor, pdf, detail, demo, views, update, then app.
 
 ## Updates
 
-`sw.js` is cache-first, so the first load after a deploy runs the old code while the new worker
-installs. `js/update.js` reloads the page when the new worker takes control: straight away if
-nothing is unsaved, otherwise at the next navigation once the New Receipt draft is empty
-(`Views.new.hasDraft()`, which includes a quote conversion in progress). Settings, product/customer edit
-forms and the quote editor count as unsaved. The first
-install never reloads.
+`sw.js` is cache-first, so after a deploy the page keeps running the old code while the new worker
+installs. The new worker then **waits** (no `skipWaiting` on install) and `js/update.js` shows a fixed
+"Update available, tap to reload" button at the top. Tapping it posts `SKIP_WAITING`; on `controllerchange`
+the page reloads. If something unsaved is on screen it asks first ("Not now" keeps it): the New Receipt draft
+(`Views.new.hasDraft()`, which includes a quote conversion in progress), Settings, product/customer edit
+forms and the quote editor. A waiting worker is offered again on every load, and activates by itself
+once every tab is closed. Other tabs that see the new worker take control reload straight away if nothing
+is unsaved, otherwise at the next navigation once the draft is empty. The first install shows no prompt.
+Installs up to `resibobz-v18` had no prompt, so `sw.js` skips waiting once when it finds one of those caches.
 
 ## Navigation
 
 Bottom nav with six tabs: **New, History, Quotes, Products, Customers, Settings**. At 320px each tab is ~53px,
 so labels/icons shrink under 400px wide (layout.e2e.js fails if any label is cut off). Hash routing:
 `#/<tab>[/<param>]`, e.g. `#/receipt/12`, `#/products/new`. Non-tab routes set `nav` in `TABS` (app.js)
-to highlight a tab: `#/receipt/<id>` highlights History, `#/quote/...` highlights Quotes. Old `#/history/<id>` links redirect to `#/receipt/<id>`.
+to highlight a tab: `#/receipt/<id>` highlights History, `#/quote/...` highlights Quotes, `#/summary` highlights History. Old `#/history/<id>` links redirect to `#/receipt/<id>`.
 New Receipt saves to `#/receipt/<id>/saved` (shows "Saved. View in History" once, then drops `/saved`).
 `#/settings/backup` scrolls to the Backup card. Each view registers
 `window.Views[<tab>] = { render(ctx) }` with `ctx = { el, params, setTitle }`.
@@ -150,6 +154,19 @@ find INV-0012), customer name, phone (3+ digits) and amount ("45" = $45.00 to $4
 Today / This week (Monday start) / This month / All / Custom (inclusive From/To), shown as a chip row
 (`ui.chipGroup`, default All; reuse it for Quotes) that scrolls sideways inside itself, never the page. Chips look
 36px tall but have 48px tap targets. Custom reveals From/To. Status All / Active / Voided.
+
+## Daily Summary
+
+`#/summary[/YYYY-MM-DD]`, opened from the "Daily summary" button at the top of History (no tab: six already fill 320px).
+Date picker (defaults to today, updates the hash). Shows receipt count, subtotal (excl. GST), GST collected, total,
+GST per rate when a day mixes rates, and count + amount per payment method (cash, card, transfer always shown),
+then the day's receipts. A day with nothing counted shows "No receipts on this date".
+- Maths in `js/summary.js` (pure; `summarize(records, {from, to})` is meant for a later stats tab, `daily()` wraps it).
+  Day = local 00:00:00 to 23:59:59.999. Counts receipts only: quotes, voided and cancelled are skipped.
+- Sums each receipt's **stored** values (line GST already rounded at that receipt's own rate), so figures always
+  match the receipt PDFs and never use the current GST setting. All sums, so payment methods add up to the total.
+- PDF: `pdf.summaryBlob(s)` (same header as receipts, current business/logo/page size), shared through
+  `detail.sharePanel(null, { fileName, makeBlob, waText })`.
 
 ## Backup
 
@@ -199,8 +216,9 @@ Today / This week (Monday start) / This month / All / Custom (inclusive From/To)
 
 1. `node --check` on every project JS file (everything except `lib/`).
 2. `node --test tests/`. All tests must pass.
-   Touched CSS, any view, the type-ahead, backup, `update.js` or `sw.js`? Also run `node --test "tests/browser/*.e2e.js"`
-   (needs Chrome; set `CHROME=` if it isn't in the default install path).
+   Touched CSS, any view, the type-ahead, backup, the PDF, `update.js`, `sw.js`, `manifest.json` or `index.html`? Also run
+   `node --test --test-concurrency=1 "tests/browser/*.e2e.js"` (needs Chrome; set `CHROME=` if it isn't in the default
+   install path). One file at a time: each starts its own Chrome, and ten at once time out on a normal laptop.
 3. Changed any file the service worker caches? Bump `CACHE_VERSION` in `sw.js`. Added/renamed one? Also add it to `ASSETS`.
 
 ## Phases
@@ -216,6 +234,9 @@ Today / This week (Monday start) / This month / All / Custom (inclusive From/To)
 - **Phase 4 (done):** Quotes / estimates: quote editor (shared with New Receipt), computed statuses, Quotes list
   with search/date/status chips, quote detail with Share/Download/Edit/Cancel/Convert, QUOTATION PDF with
   CANCELLED watermark, DB v2, backup schema 2 (reads 1), six-tab nav.
+- **Phase 5 (done):** Daily Summary (screen + PDF, pure summary maths), installable PWA (manifest id/start_url "./",
+  iPhone meta + 180px touch icon, "Update available, tap to reload" prompt), `pwa.e2e.js` (installability,
+  precache coverage, offline).
 - Later phases are defined as we go. Do only the phase asked for.
 
 ## Hosting

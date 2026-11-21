@@ -539,3 +539,22 @@ fieldset { min-width: 0; min-inline-size: 0; }               /* fieldsets defaul
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* ---- Daily Summary (#/summary) ---- */
+.summary-link { margin-bottom: 12px; }
+.summary-body > * + * { margin-top: 12px; }
+.pay-table .pay-count { color: var(--muted); font-size: 0.875rem; white-space: nowrap; padding-right: 12px; }
+.pay-table tfoot .pay-count { font-size: inherit; }
+.summary-body .list { margin: 0; }
+
+/* ---- Update available prompt (js/update.js) ---- */
+.update-bar {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  top: calc(8px + env(safe-area-inset-top, 0px)); /* over the header: New Receipt's Save bar is at the bottom */
+  z-index: 60; width: calc(100% - 32px); max-width: 480px; min-height: 48px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 16px; border: 0; border-radius: 12px;
+  background: var(--brand); color: #fff; font: inherit; font-weight: 600;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25); cursor: pointer;
+}
+.update-bar[hidden] { display: none; }
