@@ -5,7 +5,7 @@
  */
 (function () {
   'use strict';
-  const { h, field, setError, toast } = ui;
+  const { h, field, setError, toast, checkbox } = ui;
 
   const LOGO_MAX_W = 400;
   const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
@@ -205,6 +205,8 @@
     const footer = h('textarea', { rows: 2, maxlength: 300 });
     footer.value = s.receiptFooter;
 
+    const autoSave = h('input', { type: 'checkbox', checked: s.autoSaveContacts !== false });
+
     let pageSize = pdf.PAGE_SIZES[s.pageSize] ? s.pageSize : db.DEFAULT_SETTINGS.pageSize;
     const pageSizeGroup = h('fieldset', { class: 'segmented segmented-2', 'aria-describedby': 'page-size-hint' },
       h('legend', null, 'PDF page size'),
@@ -269,6 +271,7 @@
         quotePrefix: quotePrefix.value.trim(),
         receiptFooter: footer.value.trim(),
         pageSize,
+        autoSaveContacts: autoSave.checked,
       });
       toast('Settings saved');
     }
@@ -304,7 +307,9 @@
           pageSizeGroup,
           h('p', { class: 'field-hint', id: 'page-size-hint' },
             'Match the paper you print on. Applies to every PDF, including past receipts.')),
-        field('Footer note', footer, { hint: 'Printed at the bottom of receipts.' })),
+        field('Footer note', footer, { hint: 'Printed at the bottom of receipts.' }),
+        checkbox('Auto-save new customers & products', autoSave,
+          'When you save a receipt, add its customer and items to Customers and Products. Existing details are never overwritten.')),
       backupSection(ctx, s.lastBackupAt),
       developerSection(ctx),
       h('div', { class: 'sticky-bar' },

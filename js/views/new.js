@@ -278,10 +278,31 @@
         draft = newDraft();
         toast('Saved ' + saved.number);
         location.hash = '#/receipt/' + saved.id + '/saved';
+        autoSaveFrom(saved); // after the receipt is safe; never throws
       } catch (err) {
         console.error(err);
         toast('Could not save: ' + err.message);
         saveBtn.disabled = false;
+      }
+    }
+
+    /**
+     * Add the receipt's customer and items to saved Customers/Products (js/autosave.js).
+     * The receipt is already saved, so a failure here only shows a notice.
+     */
+    async function autoSaveFrom(saved) {
+      try {
+        const result = await autosave.run(saved);
+        if (!result.priceChanges.length) return;
+        const update = await ui.confirm(autosave.priceMessage(result.priceChanges, money.formatCents),
+          { okText: 'Update', cancelText: 'Keep old prices' });
+        if (update) {
+          await autosave.applyPrices(result.priceChanges);
+          toast('Saved prices updated');
+        }
+      } catch (err) {
+        console.error('Auto-save of customer/products failed', err);
+        toast('Receipt saved, but customer/products were not updated');
       }
     }
 

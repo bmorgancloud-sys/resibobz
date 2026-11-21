@@ -31,7 +31,7 @@ IndexedDB, accessed only through `js/db.js`. Object stores:
 
 | Store       | Key                    | Notes                                    |
 |-------------|------------------------|------------------------------------------|
-| `settings`  | `key` (string)         | Key/value pairs, e.g. `business`, `logo`, `gstRateBp`, `receiptPrefix`, `pageSize`, counters |
+| `settings`  | `key` (string)         | Key/value pairs, e.g. `business`, `logo`, `gstRateBp`, `receiptPrefix`, `pageSize`, `autoSaveContacts`, counters |
 | `products`  | `id` (auto-increment)  | index: `name`                            |
 | `customers` | `id` (auto-increment)  | index: `name`                            |
 | `receipts`  | `id` (auto-increment)  | indexes: `number` (unique), `date`, `customerId` |
@@ -64,6 +64,7 @@ js/backup.js        Backup file build/validate/summary/counters (pure, unit-test
 js/db.js            IndexedDB wrapper (the only file that touches IndexedDB)
 js/ui.js            DOM helpers: h(), field(), toast(), confirm(), ask() (confirm + optional text), download(), chipGroup() (scrollable pill radio row)
 js/typeahead.js     Suggestion matching (pure, unit-tested) + combobox for picking saved products/customers
+js/autosave.js      Add a saved document's customer/items to Customers/Products (plan() pure, unit-tested)
 js/pdf.js           Letter/A4 receipt PDF (lazy-loads /lib on first use)
 js/demo.js          Sample data for Settings > Developer > Load demo data (plan() is pure, unit-tested)
 js/update.js        Service worker registration + automatic reload when an update takes control
@@ -78,7 +79,7 @@ tools/server.js     Dev static server (Node built-ins, port 3000). Not loaded by
 ```
 
 Keep files small and single-purpose. Add new files under `js/` instead of growing `app.js`.
-Script load order in `index.html` matters: money, receipt, filter, backup, db, ui, typeahead, pdf, demo, views, update, then app.
+Script load order in `index.html` matters: money, receipt, filter, backup, db, ui, typeahead, autosave, pdf, demo, views, update, then app.
 
 ## Updates
 
@@ -104,11 +105,23 @@ New Receipt saves to `#/receipt/<id>/saved` (shows "Saved. View in History" once
   The logo and page size are the exception: the PDF uses the current values from Settings.
 - Save with `db.saveNewDocument('receipt', record)`, which assigns the number in the same transaction.
 - Customer name/phone are free text on the receipt; saved customers/products are only suggestions,
-  offered as type-ahead on New Receipt. Picking a product fills description, price and zero-rated;
+  offered as type-ahead on New Receipt (and filled in from saved receipts, see Auto-save below). Picking a product fills description, price and zero-rated;
   picking a customer fills name, phone, TIN and address.
 - Payment methods: `cash`, `card`, `transfer`.
 - The detail screen shows a USD total at the fixed peg BZD 2 = USD 1 (`money.bzdToUsdCents`). Display only, never stored.
 - There is no per-receipt notes field; the detail screen shows the footer note snapshot as "Note".
+
+## Auto-save customers and products
+
+Logic in `js/autosave.js`, shared so quotes can reuse it. After `saveNewDocument` succeeds, New Receipt calls
+`autosave.run(saved)`. Settings > Receipts > "Auto-save new customers & products" (`autoSaveContacts`, default on) turns it off.
+- Customer: match by phone first (`typeahead.phoneDigits`, so spaces, dashes and +501 are ignored), then by name (trimmed,
+  any case). No match: add one (if only a phone was typed, the phone is the name). Match: fill only EMPTY fields, never overwrite.
+  A walk-in (no name and no phone) saves nothing.
+- Products: match each line by name (trimmed, any case). No match: add with the unit price and zero-rated flag. A different
+  price is never changed silently: one dialog lists the changes, and `autosave.applyPrices` runs only on "Update".
+  Blank and $0.00 lines are skipped. A name repeated on one receipt uses its first line.
+- Writes go through `db.putMany` in one transaction. Errors are caught and shown as a toast, and the receipt is never lost.
 
 ## Void
 

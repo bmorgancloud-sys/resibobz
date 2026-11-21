@@ -24,6 +24,7 @@
     counter_receipt: 0,       // last number issued
     counter_quote: 0,
     lastBackupAt: null,       // ISO time of the last export/import on this device
+    autoSaveContacts: true,   // add receipt customers/items to saved Customers/Products (autosave.js)
   };
 
   let dbPromise = null;
@@ -108,6 +109,17 @@
   /** All records whose `indexName` matches `query` (a value or IDBKeyRange). */
   const getAllByIndex = (store, indexName, query) =>
     withStore(store, 'readonly', (s) => s.index(indexName).getAll(query));
+
+  /** Put records into several stores in ONE transaction: { customers: [...], products: [...] }. */
+  async function putMany(byStore) {
+    const names = Object.keys(byStore).filter((n) => byStore[n] && byStore[n].length);
+    if (!names.length) return;
+    names.forEach(assertStore);
+    const idb = await open();
+    const tx = idb.transaction(names, 'readwrite');
+    for (const n of names) for (const r of byStore[n]) tx.objectStore(n).put(r);
+    await txDone(tx);
+  }
 
   // ---- Settings ----
 
@@ -285,7 +297,7 @@
     STORES,
     DEFAULT_SETTINGS,
     open,
-    get, getAll, getAllByIndex, count, put, remove, clear,
+    get, getAll, getAllByIndex, count, put, putMany, remove, clear,
     getSetting, setSetting, setSettings, getSettings, ensureDefaults,
     nextNumber, saveNewDocument,
     voidReceipt,

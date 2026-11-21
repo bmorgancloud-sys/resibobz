@@ -77,6 +77,7 @@ test('parse rejects bad files with a clear message', () => {
   bad((b) => { b.receipts[0].id = 'x'; }, /no valid id/);
   bad((b) => { b.products[0].priceCents = '25'; }, /Product 1 is damaged/);
   bad((b) => { b.settings.gstRateBp = 12.5; }, /GST rate/);
+  bad((b) => { b.settings.autoSaveContacts = 'yes'; }, /Auto-save/);
   bad((b) => { b.settings.logo = { dataUrl: 'javascript:alert(1)' }; }, /logo/);
   bad((b) => { b.counters.receipt = -1; }, /counters are damaged/);
   bad((b) => { delete b.counters; }, /counters are missing/);

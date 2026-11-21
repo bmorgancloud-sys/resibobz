@@ -85,6 +85,7 @@
       if (k in s && !(isStr(s[k]) && s[k].trim())) fail('Number prefix is damaged.');
     }
     if ('numberPadding' in s && !(isInt(s.numberPadding) && s.numberPadding >= 1 && s.numberPadding <= 10)) fail('Number padding is damaged.');
+    if ('autoSaveContacts' in s && typeof s.autoSaveContacts !== 'boolean') fail('Auto-save setting is damaged.');
     if ('pageSize' in s && !['letter', 'a4'].includes(s.pageSize)) fail('PDF page size is damaged.');
     if ('logo' in s && s.logo !== null
       && !(isObj(s.logo) && isStr(s.logo.dataUrl) && /^data:image\/(png|jpeg);base64,/.test(s.logo.dataUrl))) {
