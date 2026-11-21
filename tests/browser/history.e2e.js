@@ -164,13 +164,56 @@ test('2. search by number, customer name, phone and amount', async () => {
   await searchFor('');
 });
 
-test('3. the Today filter excludes a receipt dated yesterday; filters combine', async () => {
+/** Date chip by its visible label: { label, rect, checked }. */
+const chip = (text) => evaluate(`(() => {
+  const l = [...document.querySelectorAll('.chips label')].find((x) => x.textContent === ${js(text)});
+  l.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  const r = l.getBoundingClientRect();
+  return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height, checked: l.control.checked };
+})()`);
+
+/** Tap a date chip like a finger would; dy shifts the tap from the pill's centre. */
+async function tapChip(text, dy = 0) {
+  const r = await chip(text);
+  const x = (r.left + r.right) / 2;
+  const y = (r.top + r.bottom) / 2 + dy;
+  for (const type of ['mousePressed', 'mouseReleased']) {
+    await cdp.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 });
+  }
+}
+
+const selectedChip = () => evaluate(`[...document.querySelectorAll('.chips input')].filter((i) => i.checked).map((i) => i.labels[0].textContent)`);
+
+test('3. date chips: All by default, Today excludes yesterday, Custom shows From/To; filters combine', async () => {
   await go('#/history', `document.querySelectorAll('.list-row').length > 0`);
-  const setPreset = (v) => evaluate(`(() => {
-    const s = document.querySelector('select[aria-label="Date range"]');
-    s.value = ${js(v)}; s.dispatchEvent(new Event('change')); return true;
-  })()`);
-  await setPreset('today');
+  assert.equal(await evaluate(`!!document.querySelector('select')`), false, 'no date dropdown any more');
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.chips label')].map((l) => l.textContent)`),
+    ['Today', 'This week', 'This month', 'All', 'Custom']);
+  assert.deepEqual(await selectedChip(), ['All']);
+  assert.equal((await chip('Today')).height, 36, 'chips are 36px tall');
+  assert.equal(await evaluate(`document.querySelector('.date-range').hidden`), true);
+
+  await tapChip('Today');
+  assert.deepEqual(await selectedChip(), ['Today']);
+  assert.deepEqual(await numbers(), ['INV-0003', 'INV-0002']);
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.chips input:checked + label')).backgroundColor`), 'rgb(11, 92, 171)',
+    'selected chip is filled blue');
+
+  // The tap target is 48px: a tap 22px above the pill's centre (4px above its edge) still selects it.
+  await tapChip('This week', -22);
+  assert.deepEqual(await selectedChip(), ['This week']);
+  const yesterdayInThisWeek = new Date().getDay() !== 1; // weeks start Monday
+  assert.deepEqual(await numbers(), yesterdayInThisWeek ? ['INV-0003', 'INV-0002', 'INV-0001'] : ['INV-0003', 'INV-0002']);
+
+  await tapChip('Custom');
+  assert.equal(await evaluate(`document.querySelector('.date-range').hidden`), false, 'Custom reveals From/To');
+  const today = await evaluate(`filter.dayString(new Date())`);
+  await evaluate(`(() => { const i = document.querySelector('.date-range input'); i.value = ${js(today)}; i.dispatchEvent(new Event('change')); return true; })()`);
+  assert.deepEqual(await numbers(), ['INV-0003', 'INV-0002'], 'From today excludes yesterday');
+  await evaluate(`(() => { const i = document.querySelector('.date-range input'); i.value = ''; i.dispatchEvent(new Event('change')); return true; })()`);
+
+  await tapChip('Today');
+  assert.equal(await evaluate(`document.querySelector('.date-range').hidden`), true, 'other chips hide From/To');
   assert.deepEqual(await numbers(), ['INV-0003', 'INV-0002']);
   assert.match(await evaluate(`document.querySelector('.list-summary').textContent`), /^2 receipts · Total \$45\.00/);
   await evaluate(`document.getElementById('status-active').click(); true`);
@@ -178,7 +221,7 @@ test('3. the Today filter excludes a receipt dated yesterday; filters combine', 
   await evaluate(`document.getElementById('status-voided').click(); true`);
   assert.deepEqual(await numbers(), ['INV-0003']);
   await evaluate(`document.getElementById('status-all').click(); true`);
-  await setPreset('all');
+  await tapChip('All');
   assert.deepEqual(await numbers(), ['INV-0003', 'INV-0002', 'INV-0001']);
 });
 

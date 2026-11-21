@@ -52,9 +52,14 @@
       type: 'search', value: state.query, placeholder: 'Number, name, phone or amount',
       'aria-label': 'Search receipts', autocomplete: 'off', enterkeyhint: 'search',
     });
-    const preset = h('select', { 'aria-label': 'Date range' },
-      filter.PRESETS.map((p) => h('option', { value: p.id }, p.label)));
-    preset.value = state.preset;
+    const preset = ui.chipGroup({
+      name: 'date', legend: 'Date range', options: filter.PRESETS, value: state.preset,
+      onChange: (id) => {
+        state.preset = id;
+        custom.hidden = id !== 'custom';
+        update();
+      },
+    });
     const fromDay = h('input', { type: 'date', value: state.fromDay });
     const toDay = h('input', { type: 'date', value: state.toDay });
     const custom = h('div', { class: 'date-range', hidden: state.preset !== 'custom' },
@@ -84,11 +89,6 @@
       timer = setTimeout(() => { state.query = search.value; update(); }, DEBOUNCE_MS);
     });
     search.addEventListener('search', () => { clearTimeout(timer); state.query = search.value; update(); }); // clear (x) / Enter
-    preset.addEventListener('change', () => {
-      state.preset = preset.value;
-      custom.hidden = state.preset !== 'custom';
-      update();
-    });
     fromDay.addEventListener('change', () => { state.fromDay = fromDay.value; update(); });
     toDay.addEventListener('change', () => { state.toDay = toDay.value; update(); });
 

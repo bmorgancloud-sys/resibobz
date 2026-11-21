@@ -26,6 +26,12 @@ function measure(width) {
     const out = [];
     for (const el of document.querySelectorAll('body *')) {
       if (el.closest('dialog') || el.offsetParent === null) continue;
+      // Clipped inside a sideways-scrolling row (e.g. the date chips) that itself fits: not page overflow.
+      let clipped = false;
+      for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+        if (getComputedStyle(a).overflowX !== 'visible') { clipped = a.getBoundingClientRect().right <= W + 0.5; break; }
+      }
+      if (clipped) continue;
       const r = el.getBoundingClientRect();
       if (r.width && r.right > W + 0.5) out.push(el.tagName.toLowerCase() + (typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\\s+/).join('.') : '') + ' (right ' + Math.round(r.right) + ')');
     }
@@ -91,14 +97,28 @@ for (const width of WIDTHS) {
       await assertFits(width, what);
     }
 
-    // History with the custom date range open and every status button visible.
+    // History: date chips in one row that may scroll inside itself, never the page.
     await visit('#/history');
-    await evaluate(`(() => { const s = document.querySelector('select[aria-label="Date range"]'); s.value = 'custom'; s.dispatchEvent(new Event('change')); return true; })()`);
+    await evaluate(`document.getElementById('date-custom').click(); true`);
     await assertFits(width, 'History custom range');
+    const chips = await evaluate(`(() => {
+      const row = document.querySelector('.chips');
+      const r = row.getBoundingClientRect();
+      return { left: r.left, right: r.right, count: row.querySelectorAll('label').length,
+        overflowX: getComputedStyle(row).overflowX, dateInputs: !document.querySelector('.date-range').hidden };
+    })()`);
+    assert.equal(chips.count, 5);
+    assert.ok(chips.left >= 0 && chips.right <= width, `chip row spans ${chips.left}-${chips.right}px, outside 0-${width}px`);
+    assert.equal(chips.overflowX, 'auto', 'chip row scrolls inside itself');
+    assert.ok(chips.dateInputs, 'Custom shows the From/To inputs');
+    await evaluate(`(() => { const row = document.querySelector('.chips'); row.scrollLeft = row.scrollWidth; return true; })()`);
+    await assertFits(width, 'History with the chip row scrolled to the end');
+
+    // Every status button visible.
     const buttons = await evaluate(`[...document.querySelectorAll('.segmented label')].map((l) => l.getBoundingClientRect().right)`);
     assert.equal(buttons.length, 3);
     for (const right of buttons) assert.ok(right <= width, `status button ends at ${right}px, past ${width}px`);
-    await evaluate(`(() => { const s = document.querySelector('select[aria-label="Date range"]'); s.value = 'all'; s.dispatchEvent(new Event('change')); return true; })()`);
+    await evaluate(`document.getElementById('date-all').click(); true`);
 
     // New Receipt with a long description typed in.
     await visit('#/new');

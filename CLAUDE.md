@@ -62,7 +62,7 @@ js/receipt.js       Receipt record builder, WhatsApp summary/link, file names (p
 js/filter.js        History search/date/status filters, count + total, backup reminder (pure, unit-tested)
 js/backup.js        Backup file build/validate/summary/counters (pure, unit-tested) + collect()/restore() via db.js
 js/db.js            IndexedDB wrapper (the only file that touches IndexedDB)
-js/ui.js            DOM helpers: h(), field(), toast(), confirm(), ask() (confirm + optional text), download()
+js/ui.js            DOM helpers: h(), field(), toast(), confirm(), ask() (confirm + optional text), download(), chipGroup() (scrollable pill radio row)
 js/typeahead.js     Suggestion matching (pure, unit-tested) + combobox for picking saved products/customers
 js/pdf.js           Letter/A4 receipt PDF (lazy-loads /lib on first use)
 js/demo.js          Sample data for Settings > Developer > Load demo data (plan() is pure, unit-tested)
@@ -122,7 +122,9 @@ New Receipt saves to `#/receipt/<id>/saved` (shows "Saved. View in History" once
 
 Logic in `js/filter.js`. One search box (200ms debounce) matches number (digits, so "0012" and "R-0012" both
 find INV-0012), customer name, phone (3+ digits) and amount ("45" = $45.00 to $45.99). Date presets
-Today / This week (Monday start) / This month / All / Custom (inclusive From/To). Status All / Active / Voided.
+Today / This week (Monday start) / This month / All / Custom (inclusive From/To), shown as a chip row
+(`ui.chipGroup`, default All; reuse it for Quotes) that scrolls sideways inside itself, never the page. Chips look
+36px tall but have 48px tap targets. Custom reveals From/To. Status All / Active / Voided.
 
 ## Backup
 

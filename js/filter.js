@@ -17,8 +17,8 @@
     { id: 'today', label: 'Today' },
     { id: 'week', label: 'This week' },
     { id: 'month', label: 'This month' },
-    { id: 'all', label: 'All dates' },
-    { id: 'custom', label: 'Custom range' },
+    { id: 'all', label: 'All' },
+    { id: 'custom', label: 'Custom' },
   ];
 
   const STATUSES = [

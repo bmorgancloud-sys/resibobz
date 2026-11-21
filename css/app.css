@@ -458,3 +458,48 @@ fieldset { min-width: 0; min-inline-size: 0; }               /* fieldsets defaul
 /* Dialog buttons wrap instead of spilling out at 320px. */
 .dialog-actions { flex-wrap: wrap; }
 .dialog-actions .btn { flex: 1 1 auto; }
+
+/* Chip row (History date presets): pills that scroll sideways inside the row, never the page.
+   The pill looks 36px tall, but each tap target is 48px (CLAUDE.md): label::after reaches 6px above
+   and below, and the row's 6px vertical padding keeps that reach inside the scroll box. */
+.chips {
+  position: relative;               /* contains the hidden radios, so they never widen the page */
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 6px 2px;                 /* 2px: room for the focus ring */
+  border: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;            /* Firefox */
+  -webkit-overflow-scrolling: touch;
+}
+.chips::-webkit-scrollbar { display: none; }  /* Chrome, Safari */
+.chips input { position: absolute; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.chips label {
+  position: relative;
+  flex: none;
+  display: inline-flex; align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.chips label::after { content: ''; position: absolute; left: 0; right: 0; top: -6px; bottom: -6px; }
+.chips input:checked + label { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+.chips input:focus-visible + label { outline: 2px solid var(--brand); outline-offset: 2px; }
+.filters .chips { margin: -6px -2px; }  /* the tap-area padding shouldn't add visible space */
+
+/* Very narrow phones: From/To stack so the date text isn't hidden behind the calendar icon. */
+@media (max-width: 359px) {
+  .date-range { grid-template-columns: minmax(0, 1fr); }
+}

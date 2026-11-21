@@ -119,6 +119,31 @@
     setTimeout(() => URL.revokeObjectURL(url), 30000);
   }
 
+  /**
+   * A row of pill "chips" that acts as one radio group (e.g. History date presets).
+   * The row scrolls sideways inside itself when it doesn't fit; the page never does.
+   * options: [{ id, label }]. onChange(id) runs when the selection changes.
+   */
+  function chipGroup({ name, legend, options, value, onChange }) {
+    const row = h('fieldset', { class: 'chips' },
+      h('legend', { class: 'visually-hidden' }, legend),
+      options.map((o) => [
+        h('input', {
+          type: 'radio', name, id: name + '-' + o.id, value: o.id, checked: value === o.id,
+          onchange: () => onChange(o.id),
+        }),
+        h('label', { for: name + '-' + o.id }, o.label),
+      ]));
+    // Once on screen, scroll the row (only the row, never the page) so the selected chip shows.
+    requestAnimationFrame(() => {
+      const label = row.querySelector('input:checked + label');
+      if (!label || !row.isConnected) return;
+      const end = label.offsetLeft + label.offsetWidth + 2;
+      if (end > row.scrollLeft + row.clientWidth) row.scrollLeft = end - row.clientWidth;
+    });
+    return row;
+  }
+
   /** Case-insensitive name sort. */
   function byName(a, b) {
     return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
@@ -134,5 +159,5 @@
     return h('div', { class: 'placeholder' }, text);
   }
 
-  window.ui = { h, field, setError, checkbox, toast, confirm, ask, download, byName, replaceRoute, empty };
+  window.ui = { h, field, setError, checkbox, toast, confirm, ask, download, chipGroup, byName, replaceRoute, empty };
 })();
