@@ -103,6 +103,10 @@ forms and the quote editor. A waiting worker is offered again on every load, and
 once every tab is closed. Other tabs that see the new worker take control reload straight away if nothing
 is unsaved, otherwise at the next navigation once the draft is empty. The first install shows no prompt.
 Installs up to `resibobz-v18` had no prompt, so `sw.js` skips waiting once when it finds one of those caches.
+iOS resumes an installed app without reloading it, so `update.js` also calls `registration.update()` on
+`visibilitychange` → visible and every 30 minutes while visible. Settings > App shows "App version" (the
+controlling worker's `CACHE_VERSION`, asked via a `GET_VERSION` message) and "Check for updates"
+(`appUpdate.check()`: shows the prompt if a worker is waiting, else toasts "You're up to date").
 
 ## Navigation
 

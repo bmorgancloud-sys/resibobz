@@ -115,3 +115,43 @@ test('on a form (Settings), tapping also asks first', async () => {
   await waitReload('reload on Settings after confirming');
   await hashIs('#/settings');
 });
+
+const settingsVersion = () => evaluate(`(document.querySelector('.app-version') || {}).textContent || ''`);
+const checkButton = () => evaluate(`(() => {
+  const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Check for updates');
+  if (!b) return false;
+  b.click();
+  return true;
+})()`);
+
+test('Settings shows the running version; "Check for updates" says up to date when nothing is new', async () => {
+  await hashIs('#/settings');
+  await page.waitFor(`(document.querySelector('.app-version') || {}).textContent === ${JSON.stringify('resibobz-e2e-' + version)}`,
+    'app version in Settings', 15000);
+  assert.ok(await checkButton(), 'Check for updates button');
+  await page.waitFor(`(document.getElementById('toast') || {}).textContent === "You're up to date"`, 'up-to-date toast', 15000);
+  assert.equal(await promptShown(), false);
+});
+
+test('"Check for updates" finds a new deploy and shows the prompt; the version changes after reloading', async () => {
+  page.server.swVersion = 'resibobz-e2e-' + (++version);
+  await mark();
+  assert.ok(await checkButton());
+  await page.waitFor(`(() => { const b = document.querySelector('.update-bar'); return !!b && !b.hidden; })()`, 'prompt after check', 15000);
+  assert.equal(await settingsVersion(), 'resibobz-e2e-' + (version - 1), 'still the old version until reloaded');
+  await tapPrompt();
+  await page.waitFor(`!!document.querySelector('dialog[open]')`, 'confirm dialog');
+  assert.ok(await dialogButton('Reload'));
+  await waitReload('reload after check');
+  await hashIs('#/settings');
+  await page.waitFor(`(document.querySelector('.app-version') || {}).textContent === ${JSON.stringify('resibobz-e2e-' + version)}`,
+    'new version in Settings', 15000);
+});
+
+test('coming back to the foreground checks for a new deploy (iOS resumes without reloading)', async () => {
+  await evaluate(`location.hash = '#/history'; true`);
+  await hashIs('#/history');
+  page.server.swVersion = 'resibobz-e2e-' + (++version);
+  await evaluate(`document.dispatchEvent(new Event('visibilitychange')), true`);
+  await page.waitFor(`(() => { const b = document.querySelector('.update-bar'); return !!b && !b.hidden; })()`, 'prompt after resume', 15000);
+});

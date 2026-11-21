@@ -2,7 +2,7 @@
  * Service worker: cache-first offline shell.
  * When you add or rename a file the app loads, add it to ASSETS and bump CACHE_VERSION.
  */
-const CACHE_VERSION = 'resibobz-v20';
+const CACHE_VERSION = 'resibobz-v21';
 
 // Use './' for the shell, never 'index.html': some static servers redirect
 // /index.html, and a cached redirect breaks offline navigation.
@@ -64,6 +64,8 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+  // Settings > App version asks the worker that controls the page, so it shows the code really running.
+  if (event.data && event.data.type === 'GET_VERSION' && event.ports[0]) event.ports[0].postMessage(CACHE_VERSION);
 });
 
 self.addEventListener('activate', (event) => {

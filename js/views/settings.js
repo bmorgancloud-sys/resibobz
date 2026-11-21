@@ -1,6 +1,7 @@
 /*
  * views/settings.js: business details, logo, GST rate, numbering, PDF page size, footer note,
- * Backup (export/import, js/backup.js) and a Developer card to load demo data (js/demo.js).
+ * Backup (export/import, js/backup.js), App (version + "Check for updates", js/update.js) and a
+ * Developer card to load demo data (js/demo.js).
  * #/settings/backup scrolls to the Backup card.
  */
 (function () {
@@ -120,6 +121,33 @@
       last,
       err,
       h('p', { class: 'field-hint' }, 'Importing replaces all data on this device. Unsaved changes on this screen will be lost.'));
+  }
+
+  /** App card: the running version (CACHE_VERSION from sw.js) and a manual update check (js/update.js). */
+  function appSection() {
+    const ver = h('span', { class: 'app-version' }, '…');
+    appUpdate.version().then((v) => { ver.textContent = v || 'Not installed (no offline copy)'; });
+
+    async function onCheck() {
+      btn.disabled = true;
+      btn.textContent = 'Checking…';
+      try {
+        const r = await appUpdate.check();
+        if (r === 'current') toast("You're up to date");
+        else if (r === 'unsupported') toast('Updates are not available in this browser');
+      } catch (err) {
+        console.error(err);
+        toast('Could not check for updates. Are you online?');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Check for updates';
+      }
+    }
+    const btn = h('button', { type: 'button', class: 'btn btn-secondary btn-block', onclick: onCheck }, 'Check for updates');
+    return h('section', { class: 'card', id: 'app' },
+      h('h2', null, 'App'),
+      h('p', { class: 'field-hint' }, 'App version: ', ver),
+      btn);
   }
 
   /** Developer card: load sample data after confirming, then re-render to show it. */
@@ -311,6 +339,7 @@
         checkbox('Auto-save new customers & products', autoSave,
           'When you save a receipt, add its customer and items to Customers and Products. Existing details are never overwritten.')),
       backupSection(ctx, s.lastBackupAt),
+      appSection(),
       developerSection(ctx),
       h('div', { class: 'sticky-bar' },
         h('button', { type: 'submit', class: 'btn btn-block' }, 'Save settings')));

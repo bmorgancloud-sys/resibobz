@@ -12,6 +12,9 @@
  * only when it's safe: straight away if nothing unsaved is on screen, otherwise at the next
  * navigation once the New Receipt draft is empty (reloadIfReady, called by the router).
  * The very first install (no previous controller) shows no prompt and doesn't reload.
+ *
+ * Checks: on load, whenever the app comes back to the foreground (iOS resumes installed apps
+ * without reloading), every 30 minutes while visible, and from Settings > "Check for updates".
  */
 (function () {
   'use strict';
@@ -97,13 +100,63 @@
         watch(reg.waiting);                   // installed on an earlier visit, still waiting
         watch(reg.installing);
         reg.addEventListener('updatefound', () => watch(reg.installing));
-        // An installed app can stay open for days: check for a new version when it comes back.
+        // An installed app can stay open for days, and iOS resumes it without reloading the page:
+        // check when it comes back to the foreground, and every 30 minutes while it is open.
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
+        setInterval(() => {
+          if (document.visibilityState === 'visible') reg.update().catch(() => {});
+        }, CHECK_EVERY_MS);
       })
       .catch((err) => console.error('SW registration failed', err));
   }
 
-  window.appUpdate = { register, reloadIfReady };
+  const CHECK_EVERY_MS = 30 * 60 * 1000;
+
+  /** Resolve once `worker` has finished installing (or failed), or after `ms`. */
+  function settled(worker, ms) {
+    return new Promise((resolve) => {
+      const done = () => {
+        if (worker.state !== 'installing') { worker.removeEventListener('statechange', done); resolve(); }
+      };
+      worker.addEventListener('statechange', done);
+      setTimeout(resolve, ms);
+      done();
+    });
+  }
+
+  /**
+   * Settings > "Check for updates". Resolves to 'update' (the prompt is now showing),
+   * 'current' (nothing new) or 'unsupported' (no service worker here). Rejects when offline.
+   */
+  async function check() {
+    if (!('serviceWorker' in navigator)) return 'unsupported';
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) return 'unsupported';
+    if (!updateReady) {
+      await reg.update();
+      if (reg.installing) await settled(reg.installing, 30000);
+    }
+    const worker = reg.waiting || (updateReady && reg.active);
+    if (worker && navigator.serviceWorker.controller) {
+      showPrompt(worker);
+      return 'update';
+    }
+    return 'current';
+  }
+
+  /** CACHE_VERSION of the worker running this page, or '' if there is none. */
+  function version() {
+    const sw = navigator.serviceWorker && navigator.serviceWorker.controller;
+    if (!sw) return Promise.resolve('');
+    return new Promise((resolve) => {
+      const ch = new MessageChannel();
+      ch.port1.onmessage = (e) => resolve(String(e.data || ''));
+      setTimeout(() => resolve(''), 2000);
+      sw.postMessage({ type: 'GET_VERSION' }, [ch.port2]);
+    });
+  }
+
+  window.appUpdate = { register, reloadIfReady, check, version };
 })();

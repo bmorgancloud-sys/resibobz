@@ -154,6 +154,8 @@ body {
 .setup-hint a { color: var(--brand); font-weight: 600; }
 .field .req { color: var(--danger); }
 .field-hint { margin: 4px 0 0; font-size: 0.8125rem; color: var(--muted); }
+#app .field-hint { margin: 0 0 12px; overflow-wrap: anywhere; }
+.app-version { font-weight: 600; color: var(--text); }
 .field-error { margin: 4px 0 0; font-size: 0.8125rem; color: var(--danger); font-weight: 600; }
 
 input[type="text"], input[type="tel"], input[type="email"], input[type="search"],
