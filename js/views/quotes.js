@@ -54,6 +54,7 @@
     const statusRow = ui.chipGroup({
       name: 'qstatus', legend: 'Status', options: quote.STATUSES, value: state.status,
       onChange: (id) => { state.status = id; update(); },
+      wrapNarrow: true, // "Converted", "Cancelled" don't fit five across at 320px
     });
 
     const summary = h('p', { class: 'list-summary', role: 'status', 'aria-live': 'polite' });

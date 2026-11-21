@@ -15,7 +15,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const harness = require('./harness.js');
 
-const WIDTHS = [320, 360, 390];
+const WIDTHS = [320, 360, 375, 390, 430];
 const LONG = 'Supercalifragilisticexpialidocious';
 
 let page, evaluate, ids;
@@ -27,7 +27,7 @@ function measure(width) {
     const out = [];
     for (const el of document.querySelectorAll('body *')) {
       if (el.closest('dialog') || el.offsetParent === null) continue;
-      // Clipped inside a sideways-scrolling row (e.g. the date chips) that itself fits: not page overflow.
+      // Clipped inside a scrolling/clipping box that itself fits: not page overflow.
       let clipped = false;
       for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
         if (getComputedStyle(a).overflowX !== 'visible') { clipped = a.getBoundingClientRect().right <= W + 0.5; break; }
@@ -38,6 +38,26 @@ function measure(width) {
     }
     return { inner: window.innerWidth, scroll: document.documentElement.scrollWidth, out: out.slice(0, 6) };
   })()`);
+}
+
+/** Every chip row (ui.chipGroup) on screen: inside the screen, not scrollable, every label whole and 48px+ tall. */
+async function assertChipRows(width, what, expectedRows) {
+  const rows = await evaluate(`[...document.querySelectorAll('.chips')].map((row) => {
+    const r = row.getBoundingClientRect();
+    return { left: r.left, right: r.right, overflowX: getComputedStyle(row).overflowX, scrolls: row.scrollWidth > row.clientWidth,
+      labels: [...row.querySelectorAll('label')].map((l) => { const b = l.getBoundingClientRect();
+        return { text: l.textContent, cut: l.scrollWidth > l.clientWidth, left: b.left, right: b.right, height: b.height }; }) };
+  })`);
+  assert.equal(rows.length, expectedRows, what + ': chip rows');
+  for (const r of rows) {
+    assert.ok(r.left >= 0 && r.right <= width + 0.5, `${what} at ${width}px: chip row spans ${r.left}-${r.right}px`);
+    assert.ok(!['auto', 'scroll'].includes(r.overflowX) && !r.scrolls, `${what} at ${width}px: chip row scrolls sideways`);
+    for (const l of r.labels) {
+      assert.ok(!l.cut, `${what} at ${width}px: chip "${l.text}" is cut off`);
+      assert.ok(l.left >= 0 && l.right <= width + 0.5 && l.height >= 48, `${what} at ${width}px: chip "${l.text}" fits and is 48px+ tall`);
+    }
+  }
+  return rows;
 }
 
 async function assertFits(width, what) {
@@ -125,34 +145,28 @@ for (const width of WIDTHS) {
 
     // Quotes: the status chip row and the date chip row stay inside the screen.
     await visit('#/quotes');
-    const rows = await evaluate(`[...document.querySelectorAll('.chips')].map((row) => {
-      const r = row.getBoundingClientRect(); return { left: r.left, right: r.right, overflowX: getComputedStyle(row).overflowX };
-    })`);
-    assert.equal(rows.length, 2);
-    for (const r of rows) assert.ok(r.left >= 0 && r.right <= width && r.overflowX === 'auto', `quotes chip row ${r.left}-${r.right}px`);
-    await evaluate(`document.getElementById('date-custom').click(); [...document.querySelectorAll('.chips')].forEach((r) => { r.scrollLeft = r.scrollWidth; }); true`);
-    await assertFits(width, 'Quotes with custom range and chip rows scrolled');
+    const qrows = await assertChipRows(width, 'Quotes', 2);
+    // Date chips: one row of 5. Statuses: 5 across from 440px, else 3 + 2 (both rows filling the width).
+    assert.equal(new Set(await evaluate(`[...document.querySelectorAll('.chips')[0].querySelectorAll('label')].map((l) => Math.round(l.getBoundingClientRect().top))`)).size, 1, 'date chips in one row');
+    const statusTops = await evaluate(`[...document.querySelectorAll('.chips')[1].querySelectorAll('label')].map((l) => Math.round(l.getBoundingClientRect().top))`);
+    assert.equal(new Set(statusTops).size, width >= 440 ? 1 : 2, 'status chips: rows');
+    assert.ok(qrows[1].labels.at(-1).right >= qrows[1].right - 1, 'second status row fills the width');
+    await evaluate(`document.getElementById('date-custom').click(); true`);
+    await assertFits(width, 'Quotes with custom range');
     await evaluate(`document.getElementById('date-all').click(); true`);
 
-    // History: date chips in one row that may scroll inside itself, never the page.
+    // History: five date chips in one row, no sideways scrolling.
     await visit('#/history');
     await evaluate(`document.getElementById('date-custom').click(); true`);
     await assertFits(width, 'History custom range');
-    const chips = await evaluate(`(() => {
-      const row = document.querySelector('.chips');
-      const r = row.getBoundingClientRect();
-      return { left: r.left, right: r.right, count: row.querySelectorAll('label').length,
-        overflowX: getComputedStyle(row).overflowX, dateInputs: !document.querySelector('.date-range').hidden };
-    })()`);
-    assert.equal(chips.count, 5);
-    assert.ok(chips.left >= 0 && chips.right <= width, `chip row spans ${chips.left}-${chips.right}px, outside 0-${width}px`);
-    assert.equal(chips.overflowX, 'auto', 'chip row scrolls inside itself');
-    assert.ok(chips.dateInputs, 'Custom shows the From/To inputs');
-    await evaluate(`(() => { const row = document.querySelector('.chips'); row.scrollLeft = row.scrollWidth; return true; })()`);
-    await assertFits(width, 'History with the chip row scrolled to the end');
+    const [hrow] = await assertChipRows(width, 'History', 1);
+    assert.deepEqual(hrow.labels.map((l) => l.text), ['Today', 'Week', 'Month', 'All', 'Custom']);
+    const widths = hrow.labels.map((l) => Math.round(l.right - l.left));
+    assert.ok(Math.max(...widths) - Math.min(...widths) <= 1, `date chips are equal width: ${widths}`);
+    assert.ok(await evaluate(`!document.querySelector('.date-range').hidden`), 'Custom shows the From/To inputs');
 
     // Every status button visible.
-    const buttons = await evaluate(`[...document.querySelectorAll('.segmented label')].map((l) => l.getBoundingClientRect().right)`);
+    const buttons = await evaluate(`[...document.querySelectorAll('.segmented:not(.chips) label')].map((l) => l.getBoundingClientRect().right)`);
     assert.equal(buttons.length, 3);
     for (const right of buttons) assert.ok(right <= width, `status button ends at ${right}px, past ${width}px`);
     await evaluate(`document.getElementById('date-all').click(); true`);

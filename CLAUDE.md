@@ -69,7 +69,7 @@ js/filter.js        History/Quotes search/date/status filters (statusOf option),
 js/summary.js       Daily Summary maths: day bounds, totals, by payment method, by GST rate (pure, unit-tested)
 js/backup.js        Backup file build/validate/summary/counters (pure, unit-tested) + collect()/restore() via db.js
 js/db.js            IndexedDB wrapper (the only file that touches IndexedDB)
-js/ui.js            DOM helpers: h(), field(), toast(), confirm(), ask() (confirm + optional text), download(), chipGroup() (scrollable pill radio row)
+js/ui.js            DOM helpers: h(), field(), toast(), confirm(), ask() (confirm + optional text), download(), chipGroup() (equal-width radio button row)
 js/typeahead.js     Suggestion matching (pure, unit-tested) + combobox for picking saved products/customers
 js/autosave.js      Add a saved document's customer/items to Customers/Products (plan() pure, unit-tested)
 js/editor.js        Shared document editor (customer, lines, live totals, validation, auto-save) for New Receipt and quotes
@@ -151,9 +151,10 @@ Logic in `js/autosave.js`, shared with quotes (the editor runs it after saving a
 
 Logic in `js/filter.js`. One search box (200ms debounce) matches number (digits, so "0012" and "R-0012" both
 find INV-0012), customer name, phone (3+ digits) and amount ("45" = $45.00 to $45.99). Date presets
-Today / This week (Monday start) / This month / All / Custom (inclusive From/To), shown as a chip row
-(`ui.chipGroup`, default All; reuse it for Quotes) that scrolls sideways inside itself, never the page. Chips look
-36px tall but have 48px tap targets. Custom reveals From/To. Status All / Active / Voided.
+Today / Week (Monday start) / Month / All / Custom (inclusive From/To), shown with `ui.chipGroup` (default All;
+Quotes uses the same component): one row of equal-width 48px buttons styled like the segmented rows, never scrolling.
+Keep chip labels to about 6 characters so five fit at 320px; longer ones (Quotes statuses) pass `wrapNarrow` and show
+3 + 2 below 440px. Custom reveals From/To. Status All / Active / Voided.
 
 ## Daily Summary
 

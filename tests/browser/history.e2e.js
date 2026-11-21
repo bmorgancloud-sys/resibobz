@@ -188,9 +188,9 @@ test('3. date chips: All by default, Today excludes yesterday, Custom shows From
   await go('#/history', `document.querySelectorAll('.list-row').length > 0`);
   assert.equal(await evaluate(`!!document.querySelector('select')`), false, 'no date dropdown any more');
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('.chips label')].map((l) => l.textContent)`),
-    ['Today', 'This week', 'This month', 'All', 'Custom']);
+    ['Today', 'Week', 'Month', 'All', 'Custom']);
   assert.deepEqual(await selectedChip(), ['All']);
-  assert.equal((await chip('Today')).height, 36, 'chips are 36px tall');
+  assert.equal((await chip('Today')).height, 48, 'chips are 48px tall, like the status buttons');
   assert.equal(await evaluate(`document.querySelector('.date-range').hidden`), true);
 
   await tapChip('Today');
@@ -199,9 +199,9 @@ test('3. date chips: All by default, Today excludes yesterday, Custom shows From
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('.chips input:checked + label')).backgroundColor`), 'rgb(11, 92, 171)',
     'selected chip is filled blue');
 
-  // The tap target is 48px: a tap 22px above the pill's centre (4px above its edge) still selects it.
-  await tapChip('This week', -22);
-  assert.deepEqual(await selectedChip(), ['This week']);
+  // The whole 48px button is the tap target: a tap 22px above its centre still selects it.
+  await tapChip('Week', -22);
+  assert.deepEqual(await selectedChip(), ['Week']);
   const yesterdayInThisWeek = new Date().getDay() !== 1; // weeks start Monday
   assert.deepEqual(await numbers(), yesterdayInThisWeek ? ['INV-0003', 'INV-0002', 'INV-0001'] : ['INV-0003', 'INV-0002']);
 

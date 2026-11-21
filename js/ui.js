@@ -120,12 +120,14 @@
   }
 
   /**
-   * A row of pill "chips" that acts as one radio group (e.g. History date presets).
-   * The row scrolls sideways inside itself when it doesn't fit; the page never does.
+   * One radio group as a row of equal-width buttons, styled like the other segmented rows
+   * (History/Quotes date presets, Quotes statuses). One column per option, never scrolls.
+   * Keep labels short (about 6 characters) so they fit at 320px.
+   * wrapNarrow: for longer labels ("Converted"); below 440px wide the row shows as 3 + 2.
    * options: [{ id, label }]. onChange(id) runs when the selection changes.
    */
-  function chipGroup({ name, legend, options, value, onChange }) {
-    const row = h('fieldset', { class: 'chips' },
+  function chipGroup({ name, legend, options, value, onChange, wrapNarrow = false }) {
+    const row = h('fieldset', { class: 'segmented chips' + (wrapNarrow ? ' chips-wrap' : '') },
       h('legend', { class: 'visually-hidden' }, legend),
       options.map((o) => [
         h('input', {
@@ -134,13 +136,7 @@
         }),
         h('label', { for: name + '-' + o.id }, o.label),
       ]));
-    // Once on screen, scroll the row (only the row, never the page) so the selected chip shows.
-    requestAnimationFrame(() => {
-      const label = row.querySelector('input:checked + label');
-      if (!label || !row.isConnected) return;
-      const end = label.offsetLeft + label.offsetWidth + 2;
-      if (end > row.scrollLeft + row.clientWidth) row.scrollLeft = end - row.clientWidth;
-    });
+    row.style.setProperty('--chip-cols', options.length);
     return row;
   }
 

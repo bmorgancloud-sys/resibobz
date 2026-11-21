@@ -15,8 +15,8 @@
 
   const PRESETS = [
     { id: 'today', label: 'Today' },
-    { id: 'week', label: 'This week' },
-    { id: 'month', label: 'This month' },
+    { id: 'week', label: 'Week' },
+    { id: 'month', label: 'Month' },
     { id: 'all', label: 'All' },
     { id: 'custom', label: 'Custom' },
   ];

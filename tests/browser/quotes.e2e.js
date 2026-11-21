@@ -229,7 +229,7 @@ test('4. a quote past its valid-until shows Expired, and converting it warns fir
   await go('#/quotes', `document.querySelectorAll('.list-row').length > 0`);
   assert.equal(await evaluate(`document.querySelector('a[href="#/quote/${ids.q3}"] .badge').textContent`), 'Expired');
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('.chips')].map((r) => [...r.querySelectorAll('label')].map((l) => l.textContent))`), [
-    ['Today', 'This week', 'This month', 'All', 'Custom'],
+    ['Today', 'Week', 'Month', 'All', 'Custom'],
     ['All', 'Open', 'Expired', 'Converted', 'Cancelled'],
   ]);
   await evaluate(`document.getElementById('qstatus-expired').click(); true`);
