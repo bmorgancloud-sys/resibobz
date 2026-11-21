@@ -411,3 +411,50 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
 .summary-head { flex-wrap: wrap; }
 .summary-head > span { white-space: nowrap; color: var(--muted); font-size: 0.9375rem; }
 .summary-head strong { white-space: nowrap; }
+
+/* ---- Overflow guards: nothing may be wider than the phone screen (checked at 320/360/390px by
+   tests/browser/layout.e2e.js). On a phone, one over-wide element widens the whole layout viewport,
+   which pushes every full-width control off the right edge. ---- */
+*, *::before, *::after { box-sizing: border-box; }
+input, select, textarea, button { max-width: 100%; min-width: 0; }
+fieldset { min-width: 0; min-inline-size: 0; }               /* fieldsets default to min-content */
+.app-main { overflow-wrap: anywhere; }                       /* long words/emails/numbers wrap */
+.app-header h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Grid tracks may shrink below their content (plain 1fr can't). */
+.bottom-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.bottom-nav a, .bottom-nav span { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.segmented { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.segmented-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.segmented label { min-width: 0; padding: 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.date-range { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.line-grid { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 560px) {
+  .line-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); }
+}
+.sticky-bar-buttons { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+.filters, .form-actions { grid-template-columns: minmax(0, 1fr); }
+.filters > *, .form-actions > *, .date-range > *, .card, .field { min-width: 0; }
+
+/* List cards: text truncates with an ellipsis; the amount column keeps its own space. */
+.list-row > * { min-width: 0; }
+.list-main { flex: 1 1 auto; }
+.list-end { flex: 0 0 auto; max-width: 60%; }               /* amounts are never cut off */
+.list-title { display: flex; align-items: center; min-width: 0; }
+.list-title-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-title .badge { flex: none; }
+.list-amount { text-align: right; overflow-wrap: anywhere; }  /* a huge amount wraps rather than hides */
+.list-main .list-sub { display: block; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-main .list-sub .badge { margin-left: 4px; }
+.list-end .list-sub { justify-content: flex-end; }
+
+/* Receipt detail */
+.summary-head > * { min-width: 0; }
+.summary-head strong { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; white-space: normal; }
+.summary-head strong .badge { margin-left: 0; }
+.summary-lines li > span:first-child { flex: 1 1 auto; min-width: 0; }
+.summary-lines .num, .totals td { white-space: nowrap; }
+
+/* Dialog buttons wrap instead of spilling out at 320px. */
+.dialog-actions { flex-wrap: wrap; }
+.dialog-actions .btn { flex: 1 1 auto; }

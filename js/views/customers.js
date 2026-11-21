@@ -28,7 +28,7 @@
         h('li', null,
           h('a', { class: 'list-row', href: '#/customers/' + c.id },
             h('span', { class: 'list-main' },
-              h('span', { class: 'list-title' }, c.name),
+              h('span', { class: 'list-title' }, h('span', { class: 'list-title-text' }, c.name)),
               h('span', { class: 'list-sub' }, [c.phone, c.email].filter(Boolean).join(' · ') || null))))));
       if (!rows.length) {
         list.append(h('li', null, empty(customers.length ? 'No customers match.' : 'No customers yet. Tap + to add one.')));

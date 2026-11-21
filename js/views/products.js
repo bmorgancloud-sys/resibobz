@@ -27,7 +27,7 @@
         return h('li', null,
           h('a', { class: 'list-row', href: '#/products/' + p.id },
             h('span', { class: 'list-main' },
-              h('span', { class: 'list-title' }, p.name),
+              h('span', { class: 'list-title' }, h('span', { class: 'list-title-text' }, p.name)),
               h('span', { class: 'list-sub' },
                 p.unit ? 'per ' + p.unit : null,
                 p.zeroRated ? h('span', { class: 'badge' }, 'Zero-rated') : null)),

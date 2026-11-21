@@ -16,7 +16,7 @@
     return h('li', null,
       h('a', { class: 'list-row' + (r.voided ? ' is-void' : ''), href: '#/receipt/' + r.id },
         h('span', { class: 'list-main' },
-          h('span', { class: 'list-title' }, r.number, r.voided ? h('span', { class: 'badge badge-void' }, 'VOID') : null),
+          h('span', { class: 'list-title' }, h('span', { class: 'list-title-text' }, r.number), r.voided ? h('span', { class: 'badge badge-void' }, 'VOID') : null),
           h('span', { class: 'list-sub' }, r.customer.name || 'Walk-in'),
           h('span', { class: 'list-sub' }, receipt.formatDateTime(r.date))),
         h('span', { class: 'list-end' },

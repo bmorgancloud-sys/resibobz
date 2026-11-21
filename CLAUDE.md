@@ -7,7 +7,10 @@ A GST receipt/invoice maker for Belize small businesses.
 - Vanilla HTML/CSS/JS PWA. **No framework, no build step, no npm.** Open `index.html` via a static server and it works.
 - **Must work fully offline.** No CDN links anywhere. Third-party libraries live in `/lib` and are cached by the service worker (`sw.js`). The service worker is cache-first, so **bump `CACHE_VERSION` on any change to a cached file** (edits included, not only adds/renames), or installed apps keep running the old code. When adding or renaming a file the app loads, also add it to `ASSETS`.
 - One business per install. No logins, no accounts, no server.
-- Mobile-first. Most users are on Android phones. Tap targets at least 48px. Test at 360px width.
+- Mobile-first. Most users are on Android phones. Tap targets at least 48px. Nothing may be wider than the
+  screen at 320, 360 or 390px (`tests/browser/layout.e2e.js`). On a phone one over-wide element widens the
+  whole layout viewport, so every full-width control runs off the edge. Use `minmax(0, 1fr)` grid tracks,
+  `min-width: 0` on flex/grid children, and ellipsis for names/numbers in list cards (never for amounts).
 
 ## Money
 
@@ -148,7 +151,7 @@ Today / This week (Monday start) / This month / All / Custom (inclusive From/To)
 
 1. `node --check` on every project JS file (everything except `lib/`).
 2. `node --test tests/`. All tests must pass.
-   Touched New Receipt, the type-ahead, History, receipt detail, backup, `update.js` or `sw.js`? Also run `node --test "tests/browser/*.e2e.js"`
+   Touched CSS, any view, the type-ahead, backup, `update.js` or `sw.js`? Also run `node --test "tests/browser/*.e2e.js"`
    (needs Chrome; set `CHROME=` if it isn't in the default install path).
 3. Changed any file the service worker caches? Bump `CACHE_VERSION` in `sw.js`. Added/renamed one? Also add it to `ASSETS`.
 

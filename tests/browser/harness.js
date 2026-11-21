@@ -57,12 +57,24 @@ async function launchChrome() {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'resibobz-e2e-'));
   const proc = spawn(exe, ['--headless=new', '--remote-debugging-port=0', '--user-data-dir=' + profile,
     '--no-first-run', '--no-default-browser-check', `--window-size=${WIDTH},800`, 'about:blank'], { stdio: 'ignore' });
-  const portFile = path.join(profile, 'DevToolsActivePort');
-  for (let i = 0; i < 100 && !fs.existsSync(portFile); i++) await sleep(100);
-  const port = fs.readFileSync(portFile, 'utf8').split('\n')[0];
-  const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-  const page = targets.find((t) => t.type === 'page');
-  return { proc, profile, wsUrl: page.webSocketDebuggerUrl };
+  try {
+    // Chrome writes its debugging port to this file. Reading it while Chrome is still writing can
+    // fail on Windows (EBUSY) or return it half-written, so retry until it holds a port number.
+    const portFile = path.join(profile, 'DevToolsActivePort');
+    let port = '';
+    for (let i = 0; i < 150 && !port; i++) {
+      try { port = (/^\d+/.exec(fs.readFileSync(portFile, 'utf8')) || [''])[0]; } catch {}
+      if (!port) await sleep(100);
+    }
+    if (!port) throw new Error('Chrome did not report its debugging port within 15s');
+    const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+    const page = targets.find((t) => t.type === 'page');
+    return { proc, profile, wsUrl: page.webSocketDebuggerUrl };
+  } catch (err) {
+    // Don't leave Chrome running: a live child process keeps `node --test` waiting forever.
+    proc.kill();
+    throw err;
+  }
 }
 
 /** Minimal Chrome DevTools Protocol client. */
@@ -99,10 +111,16 @@ async function connect(wsUrl) {
 async function open(hash = '#/new') {
   const server = await serve();
   const base = `http://localhost:${server.address().port}/`;
-  const chrome = await launchChrome();
-  const cdp = await connect(chrome.wsUrl);
-  await cdp.send('Page.enable');
-  await cdp.send('Emulation.setDeviceMetricsOverride', { width: WIDTH, height: 800, deviceScaleFactor: 2, mobile: true });
+  let chrome;
+  try {
+    chrome = await launchChrome();
+  } catch (err) {
+    server.close();
+    throw err;
+  }
+  let cdp;
+  /** Emulate a phone screen `width` CSS px wide (default 360). */
+  const setWidth = (width) => cdp.send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 2, mobile: true });
 
   async function evaluate(expression) {
     const r = await cdp.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
@@ -144,9 +162,19 @@ async function open(hash = '#/new') {
     fs.rmSync(chrome.profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 
-  await goto(base + hash);
-  await waitFor('typeof db === "object" && !!document.querySelector("#view > div")', 'app to start');
-  return { server, base, cdp, evaluate, waitFor, goto, reloadAt, close, sleep, WIDTH };
+  try {
+    cdp = await connect(chrome.wsUrl);
+    await cdp.send('Page.enable');
+    await setWidth(WIDTH);
+    await goto(base + hash);
+    await waitFor('typeof db === "object" && !!document.querySelector("#view > div")', 'app to start');
+  } catch (err) {
+    // Setup failed, so the test's after() has nothing to close: clean up here, or Chrome keeps
+    // `node --test` waiting forever.
+    await close().catch(() => {});
+    throw err;
+  }
+  return { server, base, cdp, evaluate, waitFor, goto, reloadAt, setWidth, close, sleep, WIDTH };
 }
 
 module.exports = { open, WIDTH, sleep };
