@@ -8,6 +8,7 @@
  * unsaved input:
  *   - nothing unsaved on screen: reload straight away;
  *   - otherwise: reload at the next navigation, once the New Receipt draft is empty.
+ *     Edit forms: Settings, product/customer edit, the quote editor (#/quote/new, #/quote/<id>/edit).
  *     Navigating away from an edit form discards it anyway, and the reload lands on
  *     the route the user was going to.
  * The very first install (no previous controller) doesn't reload: that page is already current.
@@ -21,7 +22,8 @@
   /** Routes that are forms: a reload there could lose typing. */
   function onForm() {
     const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
-    return parts[0] === 'settings' || ((parts[0] === 'products' || parts[0] === 'customers') && parts.length > 1);
+    return parts[0] === 'settings' || ((parts[0] === 'products' || parts[0] === 'customers') && parts.length > 1)
+      || (parts[0] === 'quote' && (parts[1] === 'new' || parts[2] === 'edit'));
   }
 
   function hasDraft() {

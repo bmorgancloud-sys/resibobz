@@ -10,8 +10,10 @@
  *   gstRateBp, subtotalCents, taxableCents, zeroRatedCents, gstCents, totalCents,
  *   business: { name, address, phone, email, gstTin },      // snapshot at time of sale
  *   footer,
- *   voided?, voidedAt?, voidReason?                         // set by db.voidReceipt; receipts are never deleted
+ *   voided?, voidedAt?, voidReason?,                        // set by db.voidReceipt; receipts are never deleted
+ *   quoteId?, quoteNumber?                                  // set by db.saveConvertedReceipt when made from a quote
  * }
+ * Quotes share this shape (minus paymentMethod, plus validUntil/notes/status fields): see js/quote.js.
  * A voided receipt keeps its number (never reused), shows VOID on screen and in the PDF,
  * and is left out of all totals (filter.summarize).
  * Everything needed to reprint is stored on the receipt, so later changes to
@@ -36,6 +38,14 @@
   /** "2026-11-19T..." -> "19 Nov 2026" (day-first, unambiguous). */
   function formatDate(iso) {
     return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  /** Local day "2026-12-04" -> "04 Dec 2026". Parsed as a local date, never UTC (no off-by-one in Belize). */
+  function formatDay(day) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || '');
+    if (!m) return '';
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+      .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
   /** "2026-11-19T15:45..." -> "19 Nov 2026, 3:45 pm" (local time). */
@@ -80,11 +90,13 @@
     };
   }
 
-  /** Plain-text summary for WhatsApp / share text. */
+  /** Plain-text summary for WhatsApp / share text. Works for receipts and quotes (type 'quote'). */
   function summaryText(r) {
+    const isQuote = r.type === 'quote';
     const out = [];
     if (r.business && r.business.name) out.push(r.business.name);
-    out.push('Receipt ' + r.number + ' (' + formatDate(r.date) + ')' + (r.voided ? ' - VOID' : ''));
+    out.push((isQuote ? 'Quotation ' : 'Receipt ') + r.number + ' (' + formatDate(r.date) + ')'
+      + (r.voided ? ' - VOID' : '') + (isQuote && r.cancelledAt ? ' - CANCELLED' : ''));
     out.push('');
     for (const l of r.lines) {
       out.push(money.formatQty(l.qtyMilli) + ' x ' + l.description + ': ' + money.formatCents(l.netCents)
@@ -94,7 +106,12 @@
     out.push('Subtotal: ' + money.formatCents(r.subtotalCents));
     out.push('GST (' + money.formatRate(r.gstRateBp) + '%): ' + money.formatCents(r.gstCents));
     out.push('Total: BZD ' + money.formatCents(r.totalCents));
-    out.push('Paid by: ' + paymentLabel(r.paymentMethod));
+    if (isQuote) {
+      if (r.validUntil) out.push('Valid until: ' + formatDay(r.validUntil));
+      if (r.notes) out.push('', r.notes);
+    } else {
+      out.push('Paid by: ' + paymentLabel(r.paymentMethod));
+    }
     if (r.business && r.business.gstTin) out.push('GST TIN: ' + r.business.gstTin);
     return out.join('\n');
   }
@@ -120,7 +137,7 @@
     return String(r.number).replace(/[^\w.-]+/g, '_') + '.pdf';
   }
 
-  const api = { PAYMENT_METHODS, paymentLabel, formatDate, formatDateTime, buildReceipt, summaryText, whatsappNumber, whatsappUrl, pdfFileName };
+  const api = { PAYMENT_METHODS, paymentLabel, formatDate, formatDay, formatDateTime, buildReceipt, summaryText, whatsappNumber, whatsappUrl, pdfFileName };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.receipt = api;

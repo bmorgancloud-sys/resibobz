@@ -2,13 +2,17 @@
  * backup.js: backup file format, validation, summary and counter maths.
  * The pure functions are unit-tested (tests/backup.test.js); collect()/restore() use db.js.
  *
- * Backup file (JSON), schemaVersion 1:
+ * Backup file (JSON), schemaVersion 2:
  * {
- *   app: "ResiboBZ", schemaVersion: 1, exportedAt: ISO string,
+ *   app: "ResiboBZ", schemaVersion: 2, exportedAt: ISO string,
  *   settings: { business, logo, gstRateBp, receiptPrefix, ... },   // no counters, no lastBackupAt
  *   counters: { receipt: 12, quote: 0 },                            // last number issued
  *   products: [...], customers: [...], receipts: [...], quotes: [...]   // records with their ids
  * }
+ * Versions:
+ *   1 (Phases 1-3): quotes and counters.quote may be missing; imported as [] and 0.
+ *   2 (Phase 4): quotes is required. Quote records (js/quote.js) carry validUntil, notes and
+ *     cancelledAt / convertedAt+receiptId; receipts made from a quote carry quoteId + quoteNumber.
  * Import replaces ALL data in one IndexedDB transaction (db.replaceAll), so a bad file or a
  * failure part-way leaves the existing data untouched.
  */
@@ -16,8 +20,8 @@
   'use strict';
 
   const APP = 'ResiboBZ';
-  const SCHEMA_VERSION = 1;
-  const SUPPORTED_VERSIONS = [1];
+  const SCHEMA_VERSION = 2;
+  const SUPPORTED_VERSIONS = [1, 2];
   const COUNTER_TYPES = ['receipt', 'quote'];
   const LIST_KEYS = ['products', 'customers', 'receipts', 'quotes'];
   /** Settings that belong to this device or to the counters section, never to `settings`. */
@@ -143,6 +147,7 @@
     for (const k of ['products', 'customers', 'receipts']) {
       if (!Array.isArray(data[k])) fail('The ' + k + ' list is missing.');
     }
+    if (data.schemaVersion >= 2 && !Array.isArray(data.quotes)) fail('The quotes list is missing.');
     if (data.quotes !== undefined && !Array.isArray(data.quotes)) fail('The quotes list is damaged.');
     checkIds(data.products, 'product');
     for (const p of data.products) {
@@ -152,14 +157,20 @@
     for (const c of data.customers) if (!isStr(c.name)) fail('Customer ' + c.id + ' is damaged.');
     checkDocs(data.receipts, 'receipt');
     checkDocs(data.quotes || [], 'quote');
-    return { ...data, quotes: data.quotes || [] };
+    for (const q of data.quotes || []) {
+      if (q.validUntil !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(q.validUntil)) fail('quote ' + q.number + ' has a damaged valid-until date.');
+    }
+    // Version 1 (Phase 3) files: no quotes yet, quote counter starts at 0.
+    return { ...data, quotes: data.quotes || [], counters: { quote: 0, ...data.counters } };
   }
 
   const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
 
-  /** "12 receipts, 8 products, 5 customers, exported 2026-11-20" */
+  /** "12 receipts, 3 quotes, 8 products, 5 customers, exported 2026-11-20" (quotes only when there are some) */
   function summary(data) {
-    return plural(data.receipts.length, 'receipt') + ', ' + plural(data.products.length, 'product') + ', '
+    const quotes = (data.quotes || []).length;
+    return plural(data.receipts.length, 'receipt') + ', ' + (quotes ? plural(quotes, 'quote') + ', ' : '')
+      + plural(data.products.length, 'product') + ', '
       + plural(data.customers.length, 'customer') + ', exported ' + dayString(new Date(data.exportedAt));
   }
 

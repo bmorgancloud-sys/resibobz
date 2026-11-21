@@ -8,7 +8,7 @@
   'use strict';
 
   const DB_NAME = 'resibobz';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;
 
   const STORES = ['settings', 'products', 'customers', 'receipts', 'quotes'];
 
@@ -29,7 +29,7 @@
 
   let dbPromise = null;
 
-  function upgrade(idb, oldVersion) {
+  function upgrade(idb, oldVersion, tx) {
     // Add a new `if (oldVersion < N)` block for each schema change; never edit earlier ones.
     if (oldVersion < 1) {
       idb.createObjectStore('settings', { keyPath: 'key' });
@@ -47,13 +47,25 @@
         s.createIndex('customerId', 'customerId');
       }
     }
+    // v2 (Phase 4, quotes): the quotes store already exists from v1; create it only if missing.
+    // Receipts get a quoteId index (receipts converted from a quote). Existing data is untouched.
+    if (oldVersion < 2) {
+      if (!idb.objectStoreNames.contains('quotes')) {
+        const q = idb.createObjectStore('quotes', { keyPath: 'id', autoIncrement: true });
+        q.createIndex('number', 'number', { unique: true });
+        q.createIndex('date', 'date');
+        q.createIndex('customerId', 'customerId');
+      }
+      const receipts = tx.objectStore('receipts');
+      if (!receipts.indexNames.contains('quoteId')) receipts.createIndex('quoteId', 'quoteId');
+    }
   }
 
   function open() {
     if (dbPromise) return dbPromise;
     dbPromise = new Promise((resolve, reject) => {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = (e) => upgrade(req.result, e.oldVersion);
+      req.onupgradeneeded = (e) => upgrade(req.result, e.oldVersion, req.transaction);
       req.onsuccess = () => {
         const idb = req.result;
         // Another tab upgraded the schema: close so it can proceed.
@@ -245,6 +257,72 @@
     return r;
   }
 
+  // ---- Quotes ----
+
+  /** Throw (after aborting tx) unless quote q exists and is neither converted nor cancelled. */
+  function assertQuoteActive(tx, q, action) {
+    let msg = null;
+    if (!q) msg = 'Quote not found';
+    else if (q.receiptId || q.convertedAt) msg = 'Quote ' + q.number + ' was already converted, so it can\'t be ' + action + '.';
+    else if (q.cancelledAt) msg = 'Quote ' + q.number + ' was cancelled, so it can\'t be ' + action + '.';
+    if (msg) {
+      try { tx.abort(); } catch {}
+      throw new Error(msg);
+    }
+  }
+
+  /**
+   * Save an edited quote. Keeps its id and number. Refused once the quote is converted or cancelled.
+   * Returns the saved record.
+   */
+  async function updateQuote(record) {
+    const idb = await open();
+    const tx = idb.transaction('quotes', 'readwrite');
+    const done = txDone(tx);
+    const store = tx.objectStore('quotes');
+    const existing = await promisify(store.get(record.id));
+    try { assertQuoteActive(tx, existing, 'edited'); } catch (err) { await done.catch(() => {}); throw err; }
+    const q = { ...record, id: existing.id, number: existing.number };
+    store.put(q);
+    await done;
+    return q;
+  }
+
+  /** Mark a quote cancelled (sets cancelledAt). Never deletes it. Returns the updated record. */
+  async function cancelQuote(id, now = new Date()) {
+    const idb = await open();
+    const tx = idb.transaction('quotes', 'readwrite');
+    const done = txDone(tx);
+    const store = tx.objectStore('quotes');
+    const q = await promisify(store.get(id));
+    try { assertQuoteActive(tx, q, 'cancelled'); } catch (err) { await done.catch(() => {}); throw err; }
+    q.cancelledAt = now.toISOString();
+    store.put(q);
+    await done;
+    return q;
+  }
+
+  /**
+   * Save a receipt made from a quote, in ONE transaction: number and add the receipt
+   * (with quoteId/quoteNumber), and mark the quote converted (convertedAt, receiptId, receiptNumber).
+   * Refused if the quote is gone, already converted or cancelled. Returns the saved receipt.
+   */
+  async function saveConvertedReceipt(record, quoteId, now = new Date()) {
+    const idb = await open();
+    const tx = idb.transaction(['settings', 'receipts', 'quotes'], 'readwrite');
+    const done = txDone(tx);
+    const quotes = tx.objectStore('quotes');
+    const q = await promisify(quotes.get(quoteId));
+    try { assertQuoteActive(tx, q, 'converted'); } catch (err) { await done.catch(() => {}); throw err; }
+    const number = await takeNumber(tx.objectStore('settings'), 'receipt');
+    const doc = { ...record, number, quoteId: q.id, quoteNumber: q.number };
+    delete doc.id;
+    const id = await promisify(tx.objectStore('receipts').add(doc));
+    quotes.put({ ...q, convertedAt: now.toISOString(), receiptId: id, receiptNumber: number });
+    await done;
+    return { ...doc, id };
+  }
+
   // ---- Backup ----
 
   /** Everything in the database: { settings (merged over defaults), products, customers, receipts, quotes }. */
@@ -301,6 +379,7 @@
     getSetting, setSetting, setSettings, getSettings, ensureDefaults,
     nextNumber, saveNewDocument,
     voidReceipt,
+    updateQuote, cancelQuote, saveConvertedReceipt,
     dumpAll, replaceAll,
   };
 })();

@@ -238,7 +238,7 @@ test('4. export, clear everything, import: all data matches and numbering contin
   assert.equal(name, 'resibobz-backup-' + today + '.json');
   const file = JSON.parse(text);
   assert.equal(file.app, 'ResiboBZ');
-  assert.equal(file.schemaVersion, 1);
+  assert.equal(file.schemaVersion, 2);
   assert.deepEqual(file.counters, { receipt: 3, quote: 0 });
   assert.match(file.settings.logo.dataUrl, /^data:image\/png;base64,/);
   assert.match(await evaluate(`document.querySelector('#backup').textContent`), /Last backup: \d\d \w{3} \d{4}/);
@@ -295,7 +295,7 @@ test('5. a bad backup file shows an error and changes nothing', async () => {
   for (const [fname, content, re] of [
     ['broken.json', '{"app":"ResiboBZ","schemaVersion":1,', /not valid JSON/],
     ['other.json', '{"app":"SomethingElse","schemaVersion":1}', /not a ResiboBZ backup/],
-    ['future.json', JSON.stringify({ app: 'ResiboBZ', schemaVersion: 2 }), /different version/],
+    ['future.json', JSON.stringify({ app: 'ResiboBZ', schemaVersion: 3 }), /different version/],
   ]) {
     await chooseFile(fname, content);
     await waitFor(`!document.querySelector('#backup .field-error').hidden`, 'error for ' + fname);

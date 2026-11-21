@@ -64,7 +64,7 @@ body {
   left: 0; right: 0; bottom: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   height: calc(var(--nav-h) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--surface);
@@ -422,7 +422,7 @@ fieldset { min-width: 0; min-inline-size: 0; }               /* fieldsets defaul
 .app-header h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Grid tracks may shrink below their content (plain 1fr can't). */
-.bottom-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.bottom-nav { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .bottom-nav a, .bottom-nav span { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .segmented { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .segmented-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -502,4 +502,40 @@ fieldset { min-width: 0; min-inline-size: 0; }               /* fieldsets defaul
 /* Very narrow phones: From/To stack so the date text isn't hidden behind the calendar icon. */
 @media (max-width: 359px) {
   .date-range { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Six nav tabs (Phase 4 added Quotes): about 53px each at 320px. Shrink icons and labels on
+   narrow phones so "Customers" still shows in full (layout.e2e.js checks no label is cut off). */
+@media (max-width: 400px) {
+  .bottom-nav svg { width: 22px; height: 22px; }
+  .bottom-nav a { font-size: 0.6875rem; letter-spacing: -0.01em; }
+}
+@media (max-width: 340px) {
+  .bottom-nav a { font-size: 0.625rem; letter-spacing: -0.02em; }
+}
+
+/* Quotes: status badges, list, detail */
+.badge-open { background: #e8f0fa; color: var(--brand); }
+.badge-expired { background: #fff1d6; color: #8a5a00; }
+.badge-converted { background: var(--zero-bg); color: var(--zero); }
+.list-row.is-cancelled .list-amount { text-decoration: line-through; color: var(--muted); }
+.list-row.is-cancelled { border-color: #f3c4c0; }
+.list-new { margin-bottom: 12px; }
+.detail-notes { margin-top: 12px; }
+.detail-link a { color: var(--brand); font-weight: 600; }
+.summary-head strong .badge { font-size: 0.75rem; }
+
+/* A text-styled button inside a notice (e.g. "Discard" on a quote conversion), 48px tap target. */
+.link-btn {
+  display: inline-flex; align-items: center;
+  min-height: var(--tap);
+  margin: -12px 0;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--brand);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
 }

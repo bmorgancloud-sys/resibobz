@@ -8,7 +8,8 @@
 // innerWidth to equal the screen width, and names the elements sticking out on failure.
 //
 // Seeds deliberately awkward data: long unbroken names, emails, descriptions, a long receipt
-// prefix and huge amounts. There is no Quotes screen yet; add '#/quotes' here when there is.
+// prefix and huge amounts. Covers the Quotes list, quote editor and quote detail too, and checks
+// that all six bottom-nav labels show in full.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -68,9 +69,17 @@ test.before(async () => {
       lines: [{ description: '${LONG}${LONG}', qtyMilli: 123456, unitCents: 9876543210, zeroRated: false }],
     }, s, new Date()));
     await db.voidReceipt(r.id, '${LONG}${LONG}');
+    await db.setSettings({ quotePrefix: 'QUOTATION-BELMOPAN-BRANCH-' });
+    const q = await db.saveNewDocument('quote', quote.buildQuote({
+      customer: { name: 'Hardware${LONG}${LONG}Limited', phone: '622-9887', tin: '000123456789000123456789', address: '${LONG}' },
+      lines: [{ description: '${LONG}${LONG}', qtyMilli: 123456, unitCents: 9876543210, zeroRated: false }],
+      validUntil: '2020-01-01', notes: '${LONG}${LONG} deposit',
+    }, s, new Date()));
+    await db.saveNewDocument('quote', quote.buildQuote({ customer: { name: 'Kim' }, validUntil: quote.defaultValidUntil(), notes: '',
+      lines: [{ description: 'Pizza', qtyMilli: 1000, unitCents: 500, zeroRated: false }] }, s, new Date()));
     await db.saveNewDocument('receipt', receipt.buildReceipt({ customer: { name: 'Kim', phone: '' }, paymentMethod: 'cash',
       lines: [{ description: 'Pizza', qtyMilli: 1000, unitCents: 500, zeroRated: false }] }, s, new Date()));
-    return { receipt: r.id, product: pid, customer: cid };
+    return { receipt: r.id, product: pid, customer: cid, quote: q.id };
   })()`);
 });
 
@@ -91,11 +100,37 @@ for (const width of WIDTHS) {
       ['#/customers', 'Customers'],
       ['#/customers/' + ids.customer, 'Customer edit'],
       ['#/settings', 'Settings'],
+      ['#/quotes', 'Quotes list'],
+      ['#/quote/' + ids.quote, 'Quote detail (expired)'],
+      ['#/quote/' + ids.quote + '/edit', 'Quote editor (edit)'],
+      ['#/quote/new', 'Quote editor (new)'],
     ];
     for (const [hash, what] of routes) {
       await visit(hash);
       await assertFits(width, what);
     }
+
+    // Bottom nav: six tabs, each label shown in full (not cut off with an ellipsis), 48px+ tall.
+    const nav = await evaluate(`[...document.querySelectorAll('.bottom-nav a')].map((a) => {
+      const s = a.querySelector('span'); const r = a.getBoundingClientRect();
+      return { label: s.textContent, cut: s.scrollWidth > s.clientWidth + 0.5, right: r.right, height: r.height };
+    })`);
+    assert.deepEqual(nav.map((n) => n.label), ['New', 'History', 'Quotes', 'Products', 'Customers', 'Settings']);
+    for (const n of nav) {
+      assert.ok(!n.cut, `nav label "${n.label}" is cut off at ${width}px`);
+      assert.ok(n.right <= width + 0.5 && n.height >= 48, `nav "${n.label}" fits and is 48px+ tall`);
+    }
+
+    // Quotes: the status chip row and the date chip row stay inside the screen.
+    await visit('#/quotes');
+    const rows = await evaluate(`[...document.querySelectorAll('.chips')].map((row) => {
+      const r = row.getBoundingClientRect(); return { left: r.left, right: r.right, overflowX: getComputedStyle(row).overflowX };
+    })`);
+    assert.equal(rows.length, 2);
+    for (const r of rows) assert.ok(r.left >= 0 && r.right <= width && r.overflowX === 'auto', `quotes chip row ${r.left}-${r.right}px`);
+    await evaluate(`document.getElementById('date-custom').click(); [...document.querySelectorAll('.chips')].forEach((r) => { r.scrollLeft = r.scrollWidth; }); true`);
+    await assertFits(width, 'Quotes with custom range and chip rows scrolled');
+    await evaluate(`document.getElementById('date-all').click(); true`);
 
     // History: date chips in one row that may scroll inside itself, never the page.
     await visit('#/history');

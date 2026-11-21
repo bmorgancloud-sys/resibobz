@@ -26,7 +26,7 @@ function dump() {
 test('build: header, settings without counters or device keys, counters section', () => {
   const b = backup.build(dump(), NOW);
   assert.equal(b.app, 'ResiboBZ');
-  assert.equal(b.schemaVersion, 1);
+  assert.equal(b.schemaVersion, 2);
   assert.equal(b.exportedAt, NOW.toISOString());
   assert.deepEqual(b.counters, { receipt: 3, quote: 0 });
   assert.equal(b.settings.logo.dataUrl, 'data:image/png;base64,iVBOR');
@@ -81,4 +81,41 @@ test('parse rejects bad files with a clear message', () => {
   bad((b) => { b.settings.logo = { dataUrl: 'javascript:alert(1)' }; }, /logo/);
   bad((b) => { b.counters.receipt = -1; }, /counters are damaged/);
   bad((b) => { delete b.counters; }, /counters are missing/);
+});
+
+function quoteDoc(id, number, extra = {}) {
+  return { ...receipt(id, number), type: 'quote', validUntil: '2026-12-04', notes: '50% deposit', ...extra };
+}
+
+test('v2 round trip keeps quotes and the quote counter; summary counts quotes', () => {
+  const d = dump();
+  d.settings.counter_quote = 3;
+  d.quotes = [quoteDoc(1, 'QT-0001'), quoteDoc(2, 'QT-0002', { cancelledAt: NOW.toISOString() }),
+    quoteDoc(3, 'QT-0003', { convertedAt: NOW.toISOString(), receiptId: 3, receiptNumber: 'INV-0003' })];
+  const b = backup.parse(JSON.stringify(backup.build(d, NOW)));
+  assert.equal(b.schemaVersion, 2);
+  assert.deepEqual(b.quotes, d.quotes);
+  assert.deepEqual(backup.countersFor(b), { receipt: 3, quote: 3 });
+  assert.equal(backup.summary(b), '3 receipts, 3 quotes, 1 product, 1 customer, exported 2026-11-20');
+});
+
+test('an old Phase 3 (schemaVersion 1) backup without quotes imports: empty quotes, quote counter 0', () => {
+  const old = backup.build(dump(), NOW);
+  old.schemaVersion = 1;
+  delete old.quotes;
+  delete old.counters.quote;
+  const b = backup.parse(JSON.stringify(old));
+  assert.deepEqual(b.quotes, []);
+  assert.deepEqual(backup.countersFor(b), { receipt: 3, quote: 0 });
+  assert.equal(backup.summary(b), '3 receipts, 1 product, 1 customer, exported 2026-11-20');
+});
+
+test('v2 requires the quotes list and checks quote dates and numbers', () => {
+  const b = backup.build(dump(), NOW);
+  delete b.quotes;
+  assert.throws(() => backup.parse(JSON.stringify(b)), /quotes list is missing/);
+  const c = backup.build({ ...dump(), quotes: [quoteDoc(1, 'QT-0001', { validUntil: '4/12/2026' })] }, NOW);
+  assert.throws(() => backup.parse(JSON.stringify(c)), /valid-until/);
+  const dup = backup.build({ ...dump(), quotes: [quoteDoc(1, 'QT-0001'), quoteDoc(2, 'QT-0001')] }, NOW);
+  assert.throws(() => backup.parse(JSON.stringify(dup)), /share number QT-0001/);
 });

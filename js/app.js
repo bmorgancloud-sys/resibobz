@@ -2,7 +2,8 @@
  * app.js: router, bottom nav, view rendering.
  *
  * Routes are hashes: #/<tab>[/<param>...], e.g. #/products, #/products/new, #/products/12.
- * Routes with `nav` aren't tabs themselves; they highlight that tab (#/receipt/12 -> History).
+ * Routes with `nav` aren't tabs themselves; they highlight that tab (#/receipt/12 -> History,
+ * #/quote/3 -> Quotes).
  * Each view file registers itself on window.Views[<tab>] = { title, render(ctx) }.
  * ctx = { el, params, setTitle(text) }. render may be async.
  */
@@ -14,10 +15,12 @@
   const TABS = {
     new:       { title: 'New receipt' },
     history:   { title: 'History' },
+    quotes:    { title: 'Quotes' },
     products:  { title: 'Products' },
     customers: { title: 'Customers' },
     settings:  { title: 'Settings' },
     receipt:   { title: 'Receipt', nav: 'history' },
+    quote:     { title: 'Quote', nav: 'quotes' },   // #/quote/<id>, #/quote/new, #/quote/<id>/edit
   };
   const DEFAULT_TAB = 'new';
 

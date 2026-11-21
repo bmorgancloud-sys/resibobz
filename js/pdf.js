@@ -1,6 +1,8 @@
 /*
- * pdf.js: Letter/A4 receipt PDF using jsPDF + jspdf-autotable from /lib (lazy-loaded, offline).
- * Exposes global `pdf` with receiptBlob(receipt) -> Promise<Blob> and PAGE_SIZES.
+ * pdf.js: Letter/A4 receipt and quote PDF using jsPDF + jspdf-autotable from /lib (lazy-loaded, offline).
+ * Exposes global `pdf` with documentBlob(doc) -> Promise<Blob> (receiptBlob/quoteBlob are aliases) and PAGE_SIZES.
+ * Quotes (doc.type === 'quote') are titled QUOTATION, show Valid until and Notes / terms, and no payment method.
+ * Watermarks: VOID (voided receipt), CANCELLED (cancelled quote).
  */
 (function () {
   'use strict';
@@ -88,21 +90,27 @@
   }
 
   /**
-   * Large diagonal "VOID" across the middle of the current page, see-through so the
-   * receipt underneath stays readable. Rotated along the page diagonal.
+   * Large diagonal word ("VOID", "CANCELLED") across the middle of the current page, see-through
+   * so the document underneath stays readable. Rotated along the page diagonal; long words are
+   * scaled down to fit within 80% of the diagonal.
    */
-  function drawVoidWatermark(doc, pageW, pageH) {
-    const size = 150;
-    setFont(doc, size, 'bold', DANGER);
+  function drawWatermark(doc, text, pageW, pageH) {
     const angle = Math.atan2(pageH, pageW);           // radians, bottom-left to top-right
-    const w = doc.getTextWidth('VOID');
+    let size = 150;
+    setFont(doc, size, 'bold', DANGER);
+    const maxW = Math.hypot(pageW, pageH) * 0.8;
+    if (doc.getTextWidth(text) > maxW) {
+      size = Math.floor(size * maxW / doc.getTextWidth(text));
+      setFont(doc, size, 'bold', DANGER);
+    }
+    const w = doc.getTextWidth(text);
     const capH = size * PT_TO_MM * 0.72;
     // jsPDF rotates text about its start point, so offset the start to centre the word.
     const x = pageW / 2 - (w / 2) * Math.cos(angle) + (capH / 2) * Math.sin(angle);
     const y = pageH / 2 + (w / 2) * Math.sin(angle) + (capH / 2) * Math.cos(angle);
     const seeThrough = typeof doc.GState === 'function';
     if (seeThrough) doc.setGState(new doc.GState({ opacity: 0.18 }));
-    doc.text('VOID', x, y, { angle: angle * 180 / Math.PI });
+    doc.text(text, x, y, { angle: angle * 180 / Math.PI });
     if (seeThrough) doc.setGState(new doc.GState({ opacity: 1 }));
   }
 
@@ -115,8 +123,12 @@
     const pageW = page.w;
     const pageH = page.h;
 
+    const isQuote = r.type === 'quote';
+    const kind = isQuote ? 'Quotation' : 'Receipt';
+    const watermark = r.voided ? 'VOID' : isQuote && r.cancelledAt ? 'CANCELLED' : null;
+
     const doc = new jsPDF({ unit: 'mm', format: page.format });
-    doc.setProperties({ title: 'Receipt ' + r.number, subject: b.name || 'Receipt', creator: 'ResiboBZ' });
+    doc.setProperties({ title: kind + ' ' + r.number, subject: b.name || kind, creator: 'ResiboBZ' });
     doc.setLineHeightFactor(1.25);
 
     const R = pageW - M;
@@ -139,13 +151,23 @@
 
     // ---- Right: title + meta ----
     setFont(doc, 22, 'bold', BRAND);
-    doc.text('RECEIPT', R, M, { align: 'right', baseline: 'top' });
+    doc.text(kind.toUpperCase(), R, M, { align: 'right', baseline: 'top' });
     let rightY = M + 12;
-    const meta = [
-      ['Receipt no.', r.number],
-      ['Date', receipt.formatDate(r.date)],
-      ['Payment', receipt.paymentLabel(r.paymentMethod)],
-    ];
+    const meta = isQuote
+      ? [
+        ['Quote no.', r.number],
+        ['Date', receipt.formatDate(r.date)],
+        ['Valid until', receipt.formatDay(r.validUntil) || '-'],
+      ]
+      : [
+        ['Receipt no.', r.number],
+        ['Date', receipt.formatDate(r.date)],
+        ['Payment', receipt.paymentLabel(r.paymentMethod)],
+      ];
+    if (isQuote && r.cancelledAt) {
+      meta.push(['Status', 'CANCELLED']);
+      meta.push(['Cancelled', receipt.formatDate(r.cancelledAt)]);
+    }
     if (r.voided) {
       meta.push(['Status', 'VOID']);
       if (r.voidedAt) meta.push(['Voided', receipt.formatDate(r.voidedAt)]);
@@ -251,6 +273,22 @@
     doc.text('Total (BZD)', labelX, ty, { baseline: 'top' });
     doc.text(fmt(r.totalCents), R, ty, { align: 'right', baseline: 'top' });
 
+    // ---- Notes / terms (quotes), above the footer ----
+    if (isQuote && r.notes) {
+      let ny = Math.max(doc.lastAutoTable.finalY, ty + 8) + 10;
+      setFont(doc, 9.5, 'normal');
+      const lines = doc.splitTextToSize(r.notes, R - M);
+      const needed = 5 + lines.length * lineHeight(doc);
+      if (ny + needed > pageH - FOOTER_SPACE) {
+        doc.addPage();
+        ny = M;
+      }
+      setFont(doc, 8, 'bold', MUTED);
+      doc.text('NOTES / TERMS', M, ny, { baseline: 'top' });
+      setFont(doc, 9.5, 'normal');
+      textBlock(doc, r.notes, M, ny + 5, { maxWidth: R - M });
+    }
+
     // ---- Footer on every page ----
     const pages = doc.getNumberOfPages();
     for (let p = 1; p <= pages; p++) {
@@ -263,20 +301,20 @@
       setFont(doc, 8, 'normal', MUTED);
       doc.text(r.number, M, pageH - 8);
       if (pages > 1) doc.text('Page ' + p + ' of ' + pages, R, pageH - 8, { align: 'right' });
-      if (r.voided) drawVoidWatermark(doc, pageW, pageH);
+      if (watermark) drawWatermark(doc, watermark, pageW, pageH);
     }
 
     return doc;
   }
 
   /**
-   * Build the receipt PDF and return it as a Blob.
-   * Uses the current logo and page size from Settings (neither is snapshotted on the receipt).
+   * Build the PDF of a receipt or a quote (r.type === 'quote': titled QUOTATION) and return it as a Blob.
+   * Uses the current logo and page size from Settings (neither is snapshotted on the document).
    */
-  async function receiptBlob(r) {
+  async function documentBlob(r) {
     const [, logo, pageSize] = await Promise.all([ensureLibs(), db.getSetting('logo'), db.getSetting('pageSize')]);
     return build(r, logo, pageSize).output('blob');
   }
 
-  window.pdf = { ensureLibs, receiptBlob, PAGE_SIZES };
+  window.pdf = { ensureLibs, documentBlob, receiptBlob: documentBlob, quoteBlob: documentBlob, PAGE_SIZES };
 })();

@@ -77,7 +77,9 @@
     return (!from || t >= from.getTime()) && (!to || t < to.getTime());
   }
 
-  function matchesStatus(r, status) {
+  /** Receipts: all/active/voided. With statusOf (e.g. quote.status), compares statusOf(r) to status. */
+  function matchesStatus(r, status, statusOf, now) {
+    if (statusOf) return status === 'all' || statusOf(r, now) === status;
     if (status === 'active') return !r.voided;
     if (status === 'voided') return !!r.voided;
     return true;
@@ -130,13 +132,15 @@
   }
 
   /**
-   * Filter and sort receipts.
-   * opts = { query, preset, fromDay, toDay, status, now }
+   * Filter and sort receipts (or quotes: same number/customer/total/date fields).
+   * opts = { query, preset, fromDay, toDay, status, now, statusOf? }
+   * statusOf(record, now) -> status id, for lists with their own statuses (Quotes uses quote.status).
    */
   function apply(receipts, opts = {}) {
-    const range = dateRange(opts.preset || 'all', opts.now || new Date(), opts.fromDay, opts.toDay);
+    const now = opts.now || new Date();
+    const range = dateRange(opts.preset || 'all', now, opts.fromDay, opts.toDay);
     return receipts
-      .filter((r) => matchesStatus(r, opts.status || 'all') && inRange(r, range) && matchesQuery(r, opts.query))
+      .filter((r) => matchesStatus(r, opts.status || 'all', opts.statusOf, now) && inRange(r, range) && matchesQuery(r, opts.query))
       .sort(newestFirst);
   }
 
