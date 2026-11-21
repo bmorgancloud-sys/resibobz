@@ -1,0 +1,49 @@
+# Netlify: static hosting straight from the repo. No build step.
+[build]
+  publish = "."
+  command = ""
+
+# Never cache the app shell or the service worker, so a deploy is picked up on the next load.
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+# Everything else may be cached briefly. File names are not versioned, so keep this short:
+# a browser without the service worker could otherwise mix a new index.html with old scripts.
+# (sw.js installs with cache: 'reload', so this never feeds stale files into the offline cache.)
+[[headers]]
+  for = "/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+# Vendored libraries and icons rarely change.
+[[headers]]
+  for = "/lib/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+
+[[headers]]
+  for = "/icons/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"

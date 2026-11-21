@@ -83,6 +83,7 @@ lib/                Vendored third-party libs (jsPDF, autotable); versions in li
 icons/              App icons: icon.svg (source), 192/512 PNGs, maskable 512 PNG (from icon-maskable.svg)
 tests/              node:test unit tests for the pure modules
 tests/browser/      *.e2e.js: headless-Chrome tests of the real app (no npm; drives Chrome over CDP)
+netlify.toml        Netlify hosting: publish the repo root, no build; no-cache on /, index.html, sw.js
 start.bat           Windows double-click launcher for the dev server
 tools/server.js     Dev static server (Node built-ins, port 3000). Not loaded by the app, not cached by sw.js
 ```
@@ -216,6 +217,12 @@ Today / This week (Monday start) / This month / All / Custom (inclusive From/To)
   with search/date/status chips, quote detail with Share/Download/Edit/Cancel/Convert, QUOTATION PDF with
   CANCELLED watermark, DB v2, backup schema 2 (reads 1), six-tab nav.
 - Later phases are defined as we go. Do only the phase asked for.
+
+## Hosting
+
+Netlify deploys from the GitHub repo using `netlify.toml`: publish `.`, no build command. `/`, `index.html` and
+`sw.js` are sent `Cache-Control: no-cache`; css/js/manifest are cached 1 hour, lib/icons 1 week. HTTPS on Netlify
+gives the secure context Web Share and the service worker need.
 
 ## Running locally
 
