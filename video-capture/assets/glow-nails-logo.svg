@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+  <!-- Placeholder logo for the made-up salon "Glow Nails Belmopan". Not a real brand. -->
+  <rect x="8" y="8" width="384" height="384" rx="96" fill="#F7D9E3"/>
+  <circle cx="200" cy="150" r="92" fill="#FFFFFF"/>
+  <!-- nail polish bottle -->
+  <rect x="181" y="70" width="38" height="58" rx="8" fill="#3A2A33"/>
+  <rect x="172" y="120" width="56" height="14" rx="5" fill="#3A2A33"/>
+  <path d="M150 150 Q150 134 166 134 H234 Q250 134 250 150 V206 Q250 226 230 226 H170 Q150 226 150 206 Z" fill="#D9557E"/>
+  <path d="M166 150 Q166 146 170 146 H186 V214 H172 Q166 214 166 208 Z" fill="#FFFFFF" opacity="0.35"/>
+  <!-- sparkle -->
+  <path d="M268 88 L274 104 L290 110 L274 116 L268 132 L262 116 L246 110 L262 104 Z" fill="#E9A23B"/>
+  <text x="200" y="302" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="68" font-style="italic" fill="#3A2A33">Glow</text>
+  <text x="200" y="350" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" letter-spacing="10" fill="#D9557E">NAILS</text>
+</svg>

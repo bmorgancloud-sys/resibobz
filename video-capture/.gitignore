@@ -1,0 +1,12 @@
+# Commit only the capture scripts and docs. Images, videos, PDFs, data and tools stay local.
+*
+!.gitignore
+!*.js
+!*.md
+!*.html
+!shots.json
+!package.json
+!package-lock.json
+!assets/
+assets/*
+!assets/glow-nails-logo.svg
