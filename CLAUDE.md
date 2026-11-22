@@ -18,10 +18,15 @@ A GST receipt/invoice maker for Belize small businesses. Tagline: "Our national 
   `resibobz` / `resibobz-test`, localStorage `resibobz.*`, the backup file marker `app: "ResiboBZ"` (import also
   accepts `"Toucan Bill"`), and the manifest `id` `"./"`. `tests/browser/rebrand.e2e.js` builds a database with the
   pre-rebrand production app (commit 2c6b92f, read from git) and checks it survives the update untouched.
-- Sunny theme (tokens on `:root` in app.css): header `--header-bg` #FFC83D with #111111 text; primary buttons
-  `--brand` #111111 with `--brand-ink` #FFC83D; selected chips/segments #111111 with white text. Accents
+- Blue theme (tokens on `:root` in app.css; the yellow "Sunny" theme was removed): header `--header-bg` #0D5DAA
+  with white text; primary buttons `--brand` #0D5DAA with `--brand-ink` white; selected chips/segments #0D5DAA with
+  white text; the active nav tab is blue. PDF title/table header and the Stats chart series use the same #0D5DAA.
+  Icons are a toucan on navy #10233F (manifest `background_color`; `theme_color` #0D5DAA). Accents
   (`--accent-green` #6DBE45, `--accent-orange` #F58220, `--accent-blue` #4FA3D9, `--accent-red` #E63B2E) are for
-  charts and badges only, always with #111111 text. Never use yellow or orange for text on white.
+  charts and badges only, always with `--badge-ink` #111111 text. The pale yellow #fff8e1 boxes are warnings
+  (backup reminder, setup hint), not theme. Never use yellow or orange for text on white.
+- Live at **https://toucanbill.netlify.app** (renamed from resibobz.netlify.app). Saved data is tied to the web
+  address: a device that used the old address keeps its data there, and moves it with Export/Import backup.
 
 ## Constraints
 
@@ -111,7 +116,12 @@ tests/browser/      *.e2e.js: headless-Chrome tests of the real app (no npm; dri
 tests/stats.test.html  Browser runner for tests/stats.cases.js (Node runs the same cases via stats.test.js)
 tests/fixtures.js   Hand-worked Stats fixture: receipts, quotes, customers, products, totals in comments
 tests/seed.html     Dev-only seed tool: fake data into the separate resibobz-test database (tests/seed-data.js)
-netlify.toml        Netlify hosting: publish the repo root, no build; no-cache on /, index.html, sw.js
+install.html        Install guide at /install (netlify.toml rewrite): iPhone/Android/computer steps, how-to video,
+install.css         WhatsApp help (wa.me/5016150551). CSS/JS in its own files (CSP). install.js picks the tab.
+install.js          These three plus how-to.mp4 and how-to-poster.jpg are NOT precached: sw.js lets them go to
+how-to.mp4          the network (GUIDE list), so the 2.5 MB video never enters the app's offline cache.
+how-to-poster.jpg   Test: tests/browser/install.e2e.js
+netlify.toml        Netlify hosting: publish the repo root, no build; no-cache on /, index.html, sw.js, install
 start.bat           Windows double-click launcher for the dev server
 tools/server.js     Dev static server (Node built-ins, port 3000). Not loaded by the app, not cached by sw.js
 ```

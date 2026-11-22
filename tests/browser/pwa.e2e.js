@@ -31,7 +31,8 @@ test('Chrome reports no installability errors and reads the manifest', async () 
   assert.equal(m.start_url, './');
   assert.equal(m.scope, './');
   assert.equal(m.display, 'standalone');
-  assert.ok(m.theme_color && m.background_color);
+  assert.equal(m.theme_color, '#0D5DAA');
+  assert.equal(m.background_color, '#10233F');
   const icon = (sizes, purpose) => m.icons.find((i) => i.sizes === sizes && i.purpose === purpose);
   assert.ok(icon('192x192', 'any') && icon('512x512', 'any') && icon('512x512', 'maskable'), '192, 512 and maskable 512 icons');
 });
@@ -45,7 +46,7 @@ test('index.html links the manifest, theme colour and iPhone tags; the touch ico
     status: !!document.querySelector('meta[name=apple-mobile-web-app-status-bar-style]'),
     touch: (document.querySelector('link[rel=apple-touch-icon]') || {}).getAttribute?.('href'),
   })`);
-  assert.deepEqual(head, { manifest: true, theme: '#FFC83D', capable: 'yes', title: 'Toucan Bill', status: true, touch: 'icons/apple-touch-icon.png' });
+  assert.deepEqual(head, { manifest: true, theme: '#0D5DAA', capable: 'yes', title: 'Toucan Bill', status: true, touch: 'icons/apple-touch-icon.png' });
   const png = fs.readFileSync(path.join(ROOT, 'icons', 'apple-touch-icon.png'));
   assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [180, 180]);
 });

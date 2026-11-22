@@ -202,7 +202,7 @@ test('3. date chips: All by default, Today excludes yesterday, Custom shows From
   assert.deepEqual(await selectedChip(), ['Today']);
   assert.deepEqual(await numbers(), ['INV-0003', 'INV-0002']);
   assert.deepEqual(await evaluate(`(() => { const s = getComputedStyle(document.querySelector('.chips input:checked + label')); return [s.backgroundColor, s.color]; })()`),
-    ['rgb(17, 17, 17)', 'rgb(255, 255, 255)'], 'selected chip is #111111 with white text');
+    ['rgb(13, 93, 170)', 'rgb(255, 255, 255)'], 'selected chip is blue #0D5DAA with white text');
 
   // The whole 48px button is the tap target: a tap 22px above its centre still selects it.
   await tapChip('Week', -22);

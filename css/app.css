@@ -1,13 +1,14 @@
 :root {
-  /* Sunny theme. --brand is the primary-button colour (near-black), --brand-ink its text (sunny yellow).
-     Yellow and orange are never body text on white (too little contrast). */
-  --brand: #111111;
-  --brand-ink: #FFC83D;
-  --header-bg: #FFC83D;
-  --header-ink: #111111;
-  --chip-on: #111111;
+  /* Blue theme. --brand is the primary-button, header and selected-chip colour, --brand-ink its text.
+     Navy #10233F is the icon/splash background (manifest background_color). */
+  --brand: #0D5DAA;
+  --brand-ink: #ffffff;
+  --header-bg: #0D5DAA;
+  --header-ink: #ffffff;
+  --chip-on: #0D5DAA;
   --chip-on-ink: #ffffff;
-  /* Accents: charts and badges only, always with near-black text. */
+  --badge-ink: #111111;
+  /* Accents: charts and badges only, always with near-black text (--badge-ink). */
   --accent-green: #6DBE45;
   --accent-orange: #F58220;
   --accent-blue: #4FA3D9;
@@ -308,7 +309,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
   padding: 1px 8px;
   border-radius: 999px;
   background: var(--accent-green);
-  color: var(--brand);
+  color: var(--badge-ink);
   font-size: 0.75rem;
   font-weight: 600;
 }
@@ -385,7 +386,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
   cursor: pointer;
 }
 .typeahead-option + .typeahead-option { border-top: 1px solid var(--border); }
-.typeahead-option:hover, .typeahead-option[aria-selected="true"] { background: #fff4d1; }
+.typeahead-option:hover, .typeahead-option[aria-selected="true"] { background: #e8f0fa; }
 .typeahead-main, .typeahead-end { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
 .typeahead-end { align-items: flex-end; flex: none; gap: 2px; }
 .typeahead-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -401,7 +402,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
 .date-range .field { margin-bottom: 0; }
 .list-summary { margin: 0 0 10px; font-size: 0.875rem; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
 .list-title .badge { margin-left: 8px; vertical-align: 1px; }
-.badge-void { background: var(--accent-red); color: var(--brand); letter-spacing: 0.04em; }
+.badge-void { background: var(--accent-red); color: var(--badge-ink); letter-spacing: 0.04em; }
 .is-void .list-amount, .is-void .total-value { text-decoration: line-through; color: var(--muted); }
 .list-row.is-void { border-color: #f3c4c0; }
 
@@ -516,9 +517,9 @@ fieldset { min-width: 0; min-inline-size: 0; }               /* fieldsets defaul
 }
 
 /* Quotes: status badges, list, detail */
-.badge-open { background: var(--accent-blue); color: var(--brand); }
-.badge-expired { background: var(--accent-orange); color: var(--brand); }
-.badge-converted { background: var(--accent-green); color: var(--brand); }
+.badge-open { background: var(--accent-blue); color: var(--badge-ink); }
+.badge-expired { background: var(--accent-orange); color: var(--badge-ink); }
+.badge-converted { background: var(--accent-green); color: var(--badge-ink); }
 .list-row.is-cancelled .list-amount { text-decoration: line-through; color: var(--muted); }
 .list-row.is-cancelled { border-color: #f3c4c0; }
 .list-new { margin-bottom: 12px; }
@@ -603,9 +604,9 @@ fieldset { min-width: 0; min-inline-size: 0; }               /* fieldsets defaul
 .glance-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 8px; }
 .glance-head h2 { margin: 0; font-size: 0.9375rem; color: var(--muted); }
 .glance-change { font-size: 0.8125rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--bg); color: var(--muted); }
-.glance-change.is-up { background: var(--accent-green); color: var(--brand); }
-.glance-change.is-down { background: var(--accent-red); color: var(--brand); }
-.glance-change.is-new { background: var(--accent-blue); color: var(--brand); }
+.glance-change.is-up { background: var(--accent-green); color: var(--badge-ink); }
+.glance-change.is-down { background: var(--accent-red); color: var(--badge-ink); }
+.glance-change.is-new { background: var(--accent-blue); color: var(--badge-ink); }
 .glance-total { margin: 2px 0 0; font-size: 1.75rem; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .glance-sub { margin: 2px 0 0; color: var(--muted); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
 .glance-note { margin: 6px 0 0; font-weight: 400; }

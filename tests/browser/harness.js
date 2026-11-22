@@ -22,7 +22,7 @@ const CHROME_PATHS = [
 ].filter(Boolean);
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
-  '.svg': 'image/svg+xml', '.png': 'image/png' };
+  '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.mp4': 'video/mp4' };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -48,6 +48,7 @@ function serve(root = ROOT) {
     const base = path.resolve(server.root);
     let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     if (p.endsWith('/')) p += 'index.html';
+    if (p === '/install') p = '/install.html'; // same as the netlify.toml rewrite
     const file = path.join(base, p);
     if (!file.startsWith(base) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
       res.writeHead(404).end();

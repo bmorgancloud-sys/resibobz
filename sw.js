@@ -2,7 +2,7 @@
  * Service worker: cache-first offline shell.
  * When you add or rename a file the app loads, add it to ASSETS and bump CACHE_VERSION.
  */
-const CACHE_VERSION = 'toucanbill-v33';
+const CACHE_VERSION = 'toucanbill-v34';
 
 // Use './' for the shell, never 'index.html': some static servers redirect
 // /index.html, and a cached redirect breaks offline navigation.
@@ -86,10 +86,17 @@ self.addEventListener('activate', (event) => {
 // cache, so they test the code being edited. Nothing under tests/ is ever precached.
 const TESTS_PREFIX = new URL('tests/', self.registration.scope).href;
 
+// The install guide (/install) is a plain web page for people who haven't installed the app yet.
+// It and its files are never precached or served from this cache: always the network.
+const GUIDE = ['install', 'install.html', 'install.css', 'install.js', 'how-to.mp4', 'how-to-poster.jpg']
+  .map((p) => new URL(p, self.registration.scope).href);
+const isGuide = (url) => GUIDE.includes(url.split(/[?#]/)[0]);
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
   if (req.url.startsWith(TESTS_PREFIX) || req.referrer.startsWith(TESTS_PREFIX)) return;
+  if (isGuide(req.url)) return;
 
   event.respondWith(
     caches.match(req, { ignoreSearch: true }).then((cached) => {

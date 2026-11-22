@@ -59,6 +59,23 @@
   [headers.values]
     Cache-Control = "public, max-age=604800"
 
+# Install guide: /install shows install.html. The page, its CSS/JS, the how-to video and poster are
+# not precached by sw.js (it lets them go to the network), and the page itself is never cached.
+[[headers]]
+  for = "/install.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/install"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[redirects]]
+  from = "/install"
+  to = "/install.html"
+  status = 200
+
 # Dev-only pages (tests/stats.test.html, tests/seed.html) are never served in production.
 [[redirects]]
   from = "/tests/*"

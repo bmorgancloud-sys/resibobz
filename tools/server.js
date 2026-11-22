@@ -21,7 +21,7 @@ const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon',
-  '.pdf': 'application/pdf', '.md': 'text/plain; charset=utf-8', '.txt': 'text/plain; charset=utf-8',
+  '.mp4': 'video/mp4', '.pdf': 'application/pdf', '.md': 'text/plain; charset=utf-8', '.txt': 'text/plain; charset=utf-8',
 };
 
 function handle(req, res) {
@@ -33,6 +33,7 @@ function handle(req, res) {
     return;
   }
   if (p.endsWith('/')) p += 'index.html';
+  if (p === '/install') p = '/install.html'; // same as the netlify.toml rewrite
   const file = path.join(ROOT, p);
   const inside = file === ROOT || file.startsWith(ROOT + path.sep);
   fs.stat(file, (err, st) => {

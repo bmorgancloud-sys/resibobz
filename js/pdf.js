@@ -21,7 +21,7 @@
   const FOOTER_SPACE = 24;           // reserved at the bottom of each page
   const TEXT = [26, 31, 41];
   const MUTED = [91, 101, 117];
-  const BRAND = [17, 17, 17]; // near-black #111111 (Sunny theme ink): title and table header
+  const BRAND = [13, 93, 170]; // #0D5DAA, the app's blue (--brand): title and table header
   const RULE = [221, 226, 234];
   const DANGER = [179, 38, 30];
   const PT_TO_MM = 0.3528;

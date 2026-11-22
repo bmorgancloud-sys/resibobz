@@ -1,0 +1,66 @@
+/* Install guide (/install). Kept out of the service worker precache on purpose. */
+:root{
+  --blue:#0D5DAA; --navy:#08183A; --yellow:#FFC83D; --ink:#14213D;
+  --muted:#55607A; --bg:#F3F5F8; --card:#FFFFFF; --line:#E1E6EE; --green:#1E9E5A;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Arial,sans-serif;
+     background:var(--bg); color:var(--ink); font-size:19px; line-height:1.5;
+     -webkit-text-size-adjust:100%}
+header{background:linear-gradient(160deg,#1660B8 0%,#0D5DAA 45%,#08183A 100%);
+       color:#fff; padding:36px 22px 30px; text-align:center}
+.logo{width:88px;height:88px;border-radius:22px;display:inline-block;vertical-align:middle;
+      box-shadow:0 8px 20px rgba(0,0,0,.18)}
+h1{font-size:30px;line-height:1.2;margin:16px 0 6px}
+header p{margin:0;font-size:19px;opacity:.92}
+main{max-width:640px;margin:0 auto;padding:18px 16px 40px}
+.card{background:var(--card);border-radius:20px;padding:20px;margin:16px 0;
+      box-shadow:0 2px 10px rgba(20,33,61,.06);border:1px solid var(--line)}
+h2{font-size:24px;margin:0 0 12px;line-height:1.25}
+video{width:100%;max-width:340px;display:block;margin:0 auto;border-radius:18px;background:#000}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0 4px}
+.tab{appearance:none;border:2px solid var(--line);background:#fff;border-radius:14px;
+     padding:12px 6px;font-size:18px;font-weight:700;color:var(--ink);cursor:pointer;min-height:56px}
+.tab[aria-selected="true"]{background:#0D5DAA;border-color:#0D5DAA;color:#fff}
+.hint{font-size:16px;color:var(--muted);text-align:center;margin:6px 0 0}
+.panel{display:none}
+.panel.on{display:block}
+ol.steps{list-style:none;margin:0;padding:0;counter-reset:s}
+ol.steps>li{counter-increment:s;display:grid;grid-template-columns:52px 1fr;gap:14px;
+            padding:16px 0;border-top:1px solid var(--line)}
+ol.steps>li:first-child{border-top:0}
+ol.steps>li::before{content:counter(s);width:52px;height:52px;border-radius:50%;
+     background:var(--yellow);color:var(--navy);font-weight:800;font-size:26px;
+     display:flex;align-items:center;justify-content:center}
+.say{font-size:21px;font-weight:700;margin:4px 0 6px}
+.small{font-size:17px;color:var(--muted);margin:0}
+.pic{margin-top:10px;background:var(--bg);border:1px solid var(--line);border-radius:14px;
+     padding:12px;display:flex;align-items:center;justify-content:center;gap:12px;min-height:76px}
+.pic svg{flex:none}
+.pill{display:inline-flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);
+      border-radius:12px;padding:10px 14px;font-weight:600;font-size:18px}
+.big-btn{display:block;text-align:center;background:#0D5DAA;color:#fff;
+         font-weight:800;font-size:22px;text-decoration:none;padding:18px;border-radius:16px;
+         margin:14px 0 4px}
+.warn{background:#FFF7E0;border:1px solid #F2D27A;border-radius:14px;padding:14px 16px;margin-top:14px}
+.warn b{display:block;margin-bottom:4px}
+.done{background:#E9F7EF;border:1px solid #A9DDBF;border-radius:14px;padding:14px 16px;margin-top:10px}
+ul.rules{margin:0;padding-left:0;list-style:none}
+ul.rules li{display:grid;grid-template-columns:40px 1fr;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+ul.rules li:first-child{border-top:0}
+.emo{font-size:28px;line-height:1.2}
+footer{text-align:center;color:var(--muted);font-size:16px;padding:10px 16px 40px}
+footer a{color:#0D5DAA;font-weight:700}
+.logo-small{width:60px;height:60px;border-radius:15px}
+.pill-ios{color:#0A84FF}
+.pill-url{font-weight:500}
+.gap-below{margin-bottom:6px}
+.gap-above{margin-top:8px}
+.help-text{font-size:19px;color:var(--ink)}
+/* Narrow phones (320px): let the step text column shrink and long pills wrap instead of widening the page. */
+ol.steps>li{grid-template-columns:52px minmax(0,1fr)}
+ol.steps>li>div{min-width:0}
+.pic{flex-wrap:wrap}
+.pill{max-width:100%;min-width:0;overflow-wrap:anywhere}
+.pill-url{font-size:16px}
