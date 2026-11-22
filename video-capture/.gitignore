@@ -10,3 +10,7 @@
 !assets/
 assets/*
 !assets/glow-nails-logo.svg
+!video/
+video/*
+!video/compose.html
+!video/render.js

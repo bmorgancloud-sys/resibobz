@@ -1,0 +1,284 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Toucan Bill video composer</title>
+<style>
+  @font-face { font-family: Inter; font-weight: 400; src: url(../node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2) format('woff2'); }
+  @font-face { font-family: Inter; font-weight: 600; src: url(../node_modules/@fontsource/inter/files/inter-latin-600-normal.woff2) format('woff2'); }
+  @font-face { font-family: Inter; font-weight: 700; src: url(../node_modules/@fontsource/inter/files/inter-latin-700-normal.woff2) format('woff2'); }
+  @font-face { font-family: Inter; font-weight: 800; src: url(../node_modules/@fontsource/inter/files/inter-latin-800-normal.woff2) format('woff2'); }
+  html, body { margin: 0; background: #000; }
+  #stage { position: relative; width: 1080px; height: 1920px; overflow: hidden; font-family: Inter, sans-serif; color: #111; }
+  .layer, .world, .overlay { position: absolute; inset: 0; }
+  .world { transform-origin: 0 0; }
+  .phone { position: absolute; background: #0d0d0f; border-radius: 98px; box-shadow: 0 40px 90px rgba(17,17,17,.28), 0 0 0 3px #2a2a2e inset; }
+  .screen { position: absolute; left: 20px; top: 20px; right: 20px; bottom: 20px; border-radius: 78px; overflow: hidden; background: #f4f6f9; }
+  .sb { position: absolute; left: 0; right: 0; top: 0; height: 88px; display: flex; align-items: center; justify-content: space-between; padding: 8px 52px 0 62px; box-sizing: border-box; font: 600 29px Inter; z-index: 3; }
+  .island { position: absolute; top: 18px; left: 50%; width: 200px; height: 58px; margin-left: -100px; background: #000; border-radius: 30px; z-index: 4; }
+  .cap { position: absolute; left: 0; top: 88px; width: 640px; }
+  .cap img { display: block; width: 640px; }
+  .caption { position: absolute; left: 50%; top: 92px; transform: translateX(-50%); background: #fff; color: #111; font: 800 74px/1.08 Inter; letter-spacing: -1.5px; padding: 30px 48px; border-radius: 40px; text-align: center; white-space: nowrap; box-shadow: 0 12px 40px rgba(17,17,17,.12); }
+  .caption.ink { background: #111; color: #FFC83D; }
+  .paper { position: absolute; background: #fff; box-shadow: 0 40px 100px rgba(17,17,17,.30); border-radius: 6px; overflow: hidden; }
+  .paper img { display: block; width: 100%; }
+  .browser { position: absolute; background: #fff; border-radius: 18px; overflow: hidden; box-shadow: 0 30px 80px rgba(17,17,17,.28); }
+  .browser .bar { height: 44px; background: #ececef; display: flex; align-items: center; gap: 10px; padding: 0 18px; font: 600 20px Inter; color: #555; }
+  .browser .dot { width: 14px; height: 14px; border-radius: 50%; background: #cfcfd4; }
+  .browser .url { margin-left: 18px; background: #fff; border-radius: 10px; padding: 4px 16px; }
+  .browser img { display: block; width: 100%; }
+  .badge { position: absolute; width: 150px; height: 150px; border-radius: 50%; background: #111; display: flex; align-items: center; justify-content: center; box-shadow: 0 16px 40px rgba(17,17,17,.25); }
+  .placeholder { position: absolute; inset: 88px 0 0 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: repeating-linear-gradient(45deg,#f4f6f9 0 24px,#eceef3 24px 48px); text-align: center; font: 700 34px/1.25 Inter; color: #5b6575; padding: 40px; }
+  .placeholder b { color: #111; font-size: 40px; }
+</style></head>
+<body><div id="stage"></div>
+<script>
+'use strict';
+// ---------- constants ----------
+const W = 1080, H = 1920;
+const Y = '#FFC83D', INK = '#111111', BG = '#FFF7E0', APPBG = '#f4f6f9';
+const K = 640 / 1179;                         // capture px -> stage px inside the phone
+const PH = { left: 200, top: 330, w: 680, h: 20 + 88 + 2556 * K + 20 };
+const FOCUS = { x: 540, y: 1080 };            // where a zoomed detail ends up (below the captions)
+const params = new URLSearchParams(location.search);
+const CUT = params.get('cut') || 'main';
+const M1 = params.get('m1') ? JSON.parse(params.get('m1')) : null;   // { frames, fps, w, h } when supplied
+const M2 = params.get('m2') === '1';
+
+// ---------- helpers ----------
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = (t) => { t = clamp(t); return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; };
+const easeOut = (t) => 1 - Math.pow(1 - clamp(t), 3);
+const back = (t) => { t = clamp(t); const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const A = (p) => '../' + p;                   // asset path (files live in video-capture/)
+const pad = (n) => String(n).padStart(5, '0');
+
+/** Stage point for a capture-pixel point on the default phone. */
+const phonePt = (x, y) => ({ x: PH.left + 20 + x * K, y: PH.top + 20 + 88 + y * K });
+
+/** Camera: zoom z toward point p by amount a (0 = neutral). */
+function cam(z, p, a) {
+  const fx = lerp(FOCUS.x, p ? p.x : FOCUS.x, a), fy = lerp(FOCUS.y, p ? p.y : FOCUS.y, a);
+  return `translate(${FOCUS.x}px,${FOCUS.y}px) scale(${z}) translate(${-fx}px,${-fy}px)`;
+}
+/** Zoom in from t0 to t1 (eased) toward capture point (x,y) at zoom z. */
+function zoomTo(lt, t0, t1, x, y, z) {
+  const e = ease(prog(lt, t0, t1));
+  return cam(lerp(1, z, e), phonePt(x, y), e);
+}
+
+const STATUS_ICONS = `<svg width="118" height="26" viewBox="0 0 118 26" fill="#111">
+  <rect x="0" y="16" width="6" height="9" rx="1.5"/><rect x="9" y="12" width="6" height="13" rx="1.5"/><rect x="18" y="7" width="6" height="18" rx="1.5"/><rect x="27" y="2" width="6" height="23" rx="1.5"/>
+  <path d="M52 9.5a17 17 0 0 1 23 0l-2.6 2.7a13.3 13.3 0 0 0-17.8 0zM56.2 13.9a11 11 0 0 1 14.6 0l-2.6 2.7a7.3 7.3 0 0 0-9.4 0zM60.4 18.3a5 5 0 0 1 6.2 0L63.5 21.6z"/>
+  <rect x="83" y="3" width="30" height="20" rx="6" fill="none" stroke="#111" stroke-width="2.2" opacity=".45"/><rect x="86" y="6" width="24" height="14" rx="3.5"/><rect x="114.5" y="9.5" width="2.8" height="7" rx="1.4" opacity=".45"/>
+</svg>`;
+
+/** Phone with a capture (img src) or a custom screen. o: { sb, dx, dy, s, inner } */
+function phone(src, o = {}) {
+  const s = o.s || 1, dx = o.dx || 0, dy = o.dy || 0;
+  const screen = o.inner != null ? o.inner : `<div class="cap"><img src="${src}"></div>`;
+  const sb = o.noStatus ? '' : `<div class="sb" style="background:${o.sb || Y}"><span>9:41</span>${STATUS_ICONS}</div>`;
+  return `<div class="phone" style="left:${PH.left}px;top:${PH.top}px;width:${PH.w}px;height:${PH.h}px;transform:translate(${dx}px,${dy}px) scale(${s});transform-origin:50% 0">
+    <div class="screen">${sb}<div class="island"></div>${screen}</div></div>`;
+}
+
+/** One caption: fades/slides in over 0.25s, out over 0.2s. */
+function caption(lt, from, to, text, o = {}) {
+  if (lt < from - 0.01 || lt > to + 0.01) return '';
+  const a = Math.min(easeOut(prog(lt, from, from + .25)), 1 - prog(lt, to - .2, to));
+  const y = lerp(24, 0, easeOut(prog(lt, from, from + .3)));
+  return `<div class="caption ${o.ink ? 'ink' : ''}" style="opacity:${a};transform:translate(-50%,${y}px);${o.top != null ? 'top:' + o.top + 'px;' : ''}${o.size ? 'font-size:' + o.size + 'px;' : ''}">${text}</div>`;
+}
+
+function bg(color) { return `<div style="position:absolute;inset:0;background:${color}"></div>`; }
+
+/** Frame file for a recording at source time st. */
+function recFrame(name, st, count) { return A(`video/frames/${name}/${pad(clamp(Math.round(st * 30) + 1, 1, count))}.jpg`); }
+const R1N = 505, R2N = 109;
+
+/** Piecewise-linear time map [[sceneT, srcT], ...]. */
+function remap(pts, t) {
+  if (t <= pts[0][0]) return pts[0][1];
+  for (let i = 1; i < pts.length; i++) {
+    if (t <= pts[i][0]) return lerp(pts[i - 1][1], pts[i][1], (t - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0]));
+  }
+  return pts[pts.length - 1][1];
+}
+
+const LOGO = A('assets/toucan-bill-logo-512.png');
+
+// ---------- scene builders (each returns { dur, fade, draw(lt) -> {world, overlay} }) ----------
+function hook(dur, lines) {
+  return { dur, fade: 0, draw(lt) {
+    const ls = back(prog(lt, .05, .6));
+    const py = lerp(1300, 860, easeOut(prog(lt, .35, 1.3)));
+    const ta = easeOut(prog(lt, .45, .9));
+    return { bg: Y, world: ''
+      + phone(A('01-new-receipt.png'), { dy: py - PH.top })
+      + `<img src="${LOGO}" style="position:absolute;left:390px;top:120px;width:300px;border-radius:70px;transform:scale(${ls});box-shadow:0 20px 50px rgba(17,17,17,.2)">`
+      + `<div style="position:absolute;left:0;right:0;top:470px;text-align:center;font:800 92px/1.08 Inter;letter-spacing:-2px;opacity:${ta};transform:translateY(${lerp(30, 0, ta)}px)">${lines.join('<br>')}</div>`,
+      overlay: '' };
+  } };
+}
+
+function recScene(dur, name, count, map, opts = {}) {
+  return { dur, fade: opts.fade ?? .35, draw(lt) {
+    const st = remap(map, lt);
+    let world = phone(recFrame(name, st, count));
+    let tr = 'none';
+    if (opts.zoom) tr = opts.zoom(st, lt);
+    return { world, worldTransform: tr, overlay: (opts.captions || []).map(([a, b, txt]) => caption(lt, a, b, txt)).join('') };
+  } };
+}
+
+function stillScene(dur, file, o = {}) {
+  return { dur, fade: o.fade ?? .3, draw(lt) {
+    const tr = o.z ? zoomTo(lt, o.t0 ?? .15, o.t1 ?? Math.min(dur - .2, 1.6), o.x, o.y, o.z) : 'none';
+    return { world: phone(A(file), { sb: o.sb }), worldTransform: tr,
+      overlay: (o.captions || []).map(([a, b, txt]) => caption(lt, a, b, txt)).join('') };
+  } };
+}
+
+/** PDF reveal: phone sinks, paper rises; then zooms (list of [t0,t1,x,y,z] in PDF px). */
+function pdfScene(dur, zooms, captions, withPhone = true) {
+  const PW = 860, k2 = PW / 2550, PL = (W - PW) / 2, PT = 500;
+  const pp = (x, y) => ({ x: PL + x * k2, y: PT + y * k2 });
+  return { dur, fade: .3, draw(lt) {
+    const rise = easeOut(prog(lt, 0, .9));
+    const paperY = lerp(700, 0, rise);
+    // Sequential camera keyframes: each zoom eases from the previous camera state to its own.
+    let z = 1, f = { x: FOCUS.x, y: FOCUS.y };
+    for (const [t0, t1, x, y, zz] of zooms) {
+      if (lt <= t0) break;
+      const e = ease(prog(lt, t0, t1)), p = pp(x, y);
+      z = lerp(z, zz, e); f = { x: lerp(f.x, p.x, e), y: lerp(f.y, p.y, e) };
+      if (lt < t1) break;
+    }
+    const tr = `translate(${FOCUS.x}px,${FOCUS.y}px) scale(${z}) translate(${-f.x}px,${-f.y}px)`;
+    const ph = withPhone && lt < 1 ? phone(recFrame('r1', 16.8, R1N), { dy: lerp(0, 900, easeOut(prog(lt, 0, .9))) }) : '';
+    return { world: ph
+      + `<div class="paper" style="left:${PL}px;top:${PT}px;width:${PW}px;transform:translateY(${paperY}px) rotate(${lerp(-4, 0, rise)}deg);opacity:${clamp(rise * 1.5)}"><img src="${A('02-receipt-pdf.png')}"></div>`,
+      worldTransform: tr, overlay: captions.map(([a1, b1, txt]) => caption(lt, a1, b1, txt)).join('') };
+  } };
+}
+
+function m1Scene(dur, captions, startAt = 0) {
+  return { dur, fade: .3, draw(lt) {
+    let inner;
+    if (M1) {
+      const n = clamp(Math.round((lt + startAt) * M1.fps) + 1, 1, M1.frames);
+      inner = `<img src="${A('video/frames/m1/' + pad(n) + '.jpg')}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`;
+    } else {
+      inner = `<div class="placeholder"><svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="#5b6575" stroke-width="1.6"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 3v12M7 8l5-5 5 5"/></svg>
+        <b>M1-whatsapp-share.mov</b><span>iPhone recording to be supplied:<br>INV-0169 → Share → WhatsApp → sent</span></div>`;
+    }
+    return { world: phone('', { inner, noStatus: !!M1, sb: Y }), worldTransform: 'none',
+      overlay: captions.map(([a, b, txt]) => caption(lt, a, b, txt)).join('') };
+  } };
+}
+
+const ICONS = {
+  wifiOff: `<svg width="84" height="84" viewBox="0 0 24 24" fill="none" stroke="${Y}" stroke-width="2.2" stroke-linecap="round"><path d="M2 8.8a15 15 0 0 1 4.2-2.6M10.7 5.1A15 15 0 0 1 22 8.8M5 12.6a10 10 0 0 1 3.6-2.2M15.5 10.6a10 10 0 0 1 3.5 2M8.5 16.1a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1" fill="${Y}"/><path d="M3 3l18 18"/></svg>`,
+  devices: `<svg width="84" height="84" viewBox="0 0 24 24" fill="none" stroke="${Y}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="14" height="10" rx="1.5"/><path d="M1 17h16"/><rect x="17" y="8" width="6" height="12" rx="1.5"/></svg>`,
+  noStore: `<svg width="84" height="84" viewBox="0 0 24 24" fill="none" stroke="${Y}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/><path d="M3 3l18 18"/></svg>`,
+  backup: `<svg width="84" height="84" viewBox="0 0 24 24" fill="none" stroke="${Y}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a5 5 0 0 1-.6-9.96A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9"/><path d="M12 11v9M8.5 16.5 12 20l3.5-3.5"/></svg>`,
+  refresh: `<svg width="84" height="84" viewBox="0 0 24 24" fill="none" stroke="${Y}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.6-4.5L3 9"/><path d="M3 4v5h5"/><path d="M4 13a8 8 0 0 0 14.6 4.5L21 15"/><path d="M21 20v-5h-5"/></svg>`,
+};
+
+function montageItem(dur, label, icon, content) {
+  return { dur, fade: .2, draw(lt) {
+    const pop = back(prog(lt, .05, .45));
+    return { world: content(lt)
+      + `<div class="badge" style="left:120px;top:1460px;transform:scale(${pop})">${ICONS[icon]}</div>`,
+      worldTransform: 'none', overlay: caption(lt, 0, dur + .2, label, { ink: true }) };
+  } };
+}
+const mini = (src, o = {}) => phone(src, { s: o.s || .72, dx: o.dx || 0, dy: o.dy ?? 60, sb: o.sb });
+function browserFrame(src, left, top, width) {
+  return `<div class="browser" style="left:${left}px;top:${top}px;width:${width}px"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">toucanbill.netlify.app</span></div><img src="${src}"></div>`;
+}
+
+function endCard(dur) {
+  return { dur, fade: .35, draw(lt) {
+    const ls = back(prog(lt, .05, .6));
+    const a1 = easeOut(prog(lt, .35, .8)), a2 = easeOut(prog(lt, .6, 1.05)), a3 = easeOut(prog(lt, .85, 1.3));
+    return { bg: Y, world: ''
+      + `<img src="${LOGO}" style="position:absolute;left:340px;top:420px;width:400px;border-radius:92px;transform:scale(${ls});box-shadow:0 24px 60px rgba(17,17,17,.22)">`
+      + `<div style="position:absolute;left:0;right:0;top:900px;text-align:center;font:800 104px Inter;letter-spacing:-2.5px;opacity:${a1}">Toucan Bill</div>`
+      + `<div style="position:absolute;left:0;right:0;top:1030px;text-align:center;font:600 44px Inter;opacity:${a1}">Our national bird. Its bill is your receipt.</div>`
+      + `<div style="position:absolute;left:0;right:0;top:1180px;text-align:center;font:700 62px Inter;opacity:${a2}">toucanbill.netlify.app</div>`
+      + `<div style="position:absolute;left:50%;top:1310px;transform:translateX(-50%) scale(${lerp(.9, 1, a3)});opacity:${a3};background:${INK};color:${Y};font:800 58px Inter;padding:34px 60px;border-radius:999px;white-space:nowrap">Install free — no app store</div>`,
+      worldTransform: 'none', overlay: '' };
+  } };
+}
+
+// ---------- the two cuts ----------
+// R1 source moments: nav tap 0.9s, customer picked ~2.6s, items to 11.8s, Card 13.0s, Save 13.6s, saved receipt 14.2s, end 16.8s.
+const r1Zoom = (st) => {
+  // push in on the totals bar as it reaches $106.88, release when the saved receipt appears
+  const inA = ease(prog(st, 12.1, 13.0)), out = ease(prog(st, 13.7, 14.3));
+  const e = inA * (1 - out);
+  return cam(lerp(1, 1.32, e), phonePt(330, 2190), e);
+};
+
+function mainCut() {
+  return [
+    hook(3, ['Receipts in seconds.', 'Sent on WhatsApp.']),
+    recScene(12, 'r1', R1N, [[0, .7], [6.94, 11.8], [12, 16.86]], { zoom: r1Zoom, captions: [[.2, 3.0, 'Pick the customer'], [3.0, 7.4, 'Add saved services'], [7.4, 11.9, 'GST done for you']] }),
+    pdfScene(5, [[1.0, 2.2, 640, 330, 2.0], [2.7, 3.9, 1950, 1010, 2.0]], [[.3, 2.5, 'A real PDF receipt'], [2.5, 4.95, 'Your logo. Your GST TIN.']]),
+    recScene(3.6, 'r2', R2N, [[0, 0], [3.6, 3.6]], { captions: [[.2, 3.7, 'One tap to WhatsApp']] }),
+    m1Scene(3.4, [[0, 3.3, 'One tap to WhatsApp']]),
+    stillScene(2, '04b-pick-product.png', { x: 590, y: 860, z: 1.4, t1: 1.3, captions: [[.15, 1.95, 'Saved services']] }),
+    stillScene(2, '13-customers.png', { x: 590, y: 900, z: 1.18, t1: 1.4, captions: [[.15, 1.95, 'Saved customers']] }),
+    stillScene(2, '10b-walk-in-receipt.png', { x: 420, y: 1000, z: 1.45, t1: 1.3, captions: [[.15, 1.95, 'Walk-ins welcome']] }),
+    stillScene(2, '05-quote.png', { x: 590, y: 1720, z: 1.4, t1: 1.4, captions: [[.15, 1.95, 'Send a quote']] }),
+    stillScene(2, '05b-convert.png', { x: 590, y: 400, z: 1.3, t1: 1.4, captions: [[.15, 1.95, 'Convert it to a receipt']] }),
+    stillScene(2, '05c-quote-statuses.png', { x: 470, y: 1400, z: 1.3, t1: 1.4, captions: [[.15, 1.95, 'Track every quote']] }),
+    stillScene(2.2, '06-history-search.png', { x: 590, y: 720, z: 1.4, t1: 1.4, captions: [[.15, 2.15, 'Find any receipt']] }),
+    stillScene(1.8, '06b-filters.png', { x: 590, y: 650, z: 1.45, t1: 1.2, captions: [[0, 1.75, 'Find any receipt']] }),
+    stillScene(2.5, '09-daily-summary.png', { x: 590, y: 1250, z: 1.28, t1: 1.6, captions: [[.15, 2.45, 'Close the day']] }),
+    stillScene(2.3, '07-stats.png', { x: 820, y: 650, z: 1.35, t1: 1.5, captions: [[.15, 2.25, 'Know your numbers']] }),
+    stillScene(2, '07a-stats-trend.png', { x: 590, y: 600, z: 1.18, t1: 1.5, sb: APPBG, captions: [[0, 1.95, 'Know your numbers']] }),
+    stillScene(2.2, '08-gst-monthly.png', { x: 590, y: 1245, z: 1.5, t1: 1.4, captions: [[.15, 2.15, 'GST report in one tap']] }),
+    montageItem(1, 'Works offline', 'wifiOff', () => mini(A('14-offline.png'))),
+    montageItem(1, 'iPhone, Android, computer', 'devices', () => browserFrame(A('17-desktop.png'), 70, 520, 940) + mini(M2 ? A('manual/M2-home-screen.png') : A('01-new-receipt.png'), { s: .52, dx: 250, dy: 300 })),
+    montageItem(1, 'No app store', 'noStore', () => (M2 ? mini(A('manual/M2-home-screen.png')) : `<img src="${LOGO}" style="position:absolute;left:340px;top:640px;width:400px;border-radius:92px;box-shadow:0 24px 60px rgba(17,17,17,.22)"><div style="position:absolute;left:0;right:0;top:1080px;text-align:center;font:700 48px Inter">Add to Home Screen</div>`)),
+    montageItem(1, 'One-tap backup', 'backup', () => mini(A('15-backup.png'), { sb: APPBG })),
+    montageItem(1, 'Updates itself', 'refresh', () => mini(A('16-update-prompt.png'))),
+    endCard(3),
+  ];
+}
+
+function shortCut() {
+  return [
+    hook(2, ['Receipts in seconds']),
+    recScene(8, 'r1', R1N, [[0, 1.2], [4, 12.0], [8, 16.0]], { zoom: r1Zoom, captions: [[.2, 7.9, 'Make it']] }),
+    pdfScene(3, [[1.0, 2.2, 1950, 1010, 2.0]], [[.3, 2.95, 'A real PDF']]),
+    recScene(1.5, 'r2', R2N, [[0, 2.1], [1.5, 3.6]], { captions: [[.1, 1.6, 'Sent on WhatsApp']] }),
+    m1Scene(2.5, [[0, 2.45, 'Sent on WhatsApp']], M1 ? Math.max(0, M1.frames / M1.fps - 2.5) : 0),
+    endCard(3),
+  ];
+}
+
+const SCENES = CUT === 'short' ? shortCut() : mainCut();
+let acc = 0;
+for (const s of SCENES) { s.start = acc; acc += s.dur; }
+window.TOTAL = acc;
+
+function drawScene(s, t, opacity) {
+  const r = s.draw(t - s.start);
+  return `<div class="layer" style="opacity:${opacity}">${bg(r.bg || BG)}<div class="world" style="transform:${r.worldTransform || 'none'}">${r.world}</div><div class="overlay">${r.overlay}</div></div>`;
+}
+
+window.renderAt = async (t) => {
+  const i = Math.max(0, SCENES.findIndex((s) => t >= s.start && t < s.start + s.dur) === -1 ? SCENES.length - 1 : SCENES.findIndex((s) => t >= s.start && t < s.start + s.dur));
+  const s = SCENES[i];
+  let html = '';
+  const fp = s.fade ? (t - s.start) / s.fade : 1;
+  if (i > 0 && fp < 1) html += drawScene(SCENES[i - 1], Math.min(t, SCENES[i - 1].start + SCENES[i - 1].dur - 0.001), 1);
+  html += drawScene(s, t, i > 0 ? ease(clamp(fp)) : 1);
+  document.getElementById('stage').innerHTML = html;
+  await document.fonts.ready;
+  await Promise.all([...document.images].map((im) => im.decode().catch(() => {})));
+};
+window.composerReady = true;
+</script></body></html>
