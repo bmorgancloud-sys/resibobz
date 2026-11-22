@@ -90,6 +90,34 @@
     };
   }
 
+  /**
+   * The record with every line value and total recalculated from its lines (qtyMilli, unitCents,
+   * zeroRated) and gstRateBp, so a save never trusts a total it was handed. Throws if a line or the
+   * rate is not a valid whole number in range. Used by db.js on every receipt/quote save.
+   */
+  function withTotals(record) {
+    const bad = (msg) => { throw new Error('Not saved: ' + msg); };
+    const rate = record.gstRateBp;
+    if (!Number.isSafeInteger(rate) || rate < 0 || rate > 10000) bad('the GST rate must be 0 to 100%.');
+    if (!Array.isArray(record.lines) || !record.lines.length) bad('add at least one item.');
+    record.lines.forEach((l, i) => {
+      const n = 'line ' + (i + 1);
+      if (!String(l.description || '').trim()) bad(n + ' needs a description.');
+      if (!Number.isSafeInteger(l.qtyMilli) || l.qtyMilli <= 0 || l.qtyMilli > money.MAX_QTY_MILLI) bad(n + ' has an invalid quantity.');
+      if (!Number.isSafeInteger(l.unitCents) || l.unitCents < 0 || l.unitCents > money.MAX_PRICE_CENTS) bad(n + ' has an invalid price.');
+    });
+    const t = money.calcTotals(record.lines.map((l) => ({ qtyMilli: l.qtyMilli, unitCents: l.unitCents, zeroRated: !!l.zeroRated })), rate);
+    return {
+      ...record,
+      lines: record.lines.map((l, i) => ({ ...l, zeroRated: !!l.zeroRated, netCents: t.lines[i].netCents, gstCents: t.lines[i].gstCents })),
+      subtotalCents: t.subtotalCents,
+      taxableCents: t.taxableCents,
+      zeroRatedCents: t.zeroRatedCents,
+      gstCents: t.gstCents,
+      totalCents: t.totalCents,
+    };
+  }
+
   /** Plain-text summary for WhatsApp / share text. Works for receipts and quotes (type 'quote'). */
   function summaryText(r) {
     const isQuote = r.type === 'quote';
@@ -137,7 +165,7 @@
     return String(r.number).replace(/[^\w.-]+/g, '_') + '.pdf';
   }
 
-  const api = { PAYMENT_METHODS, paymentLabel, formatDate, formatDay, formatDateTime, buildReceipt, summaryText, whatsappNumber, whatsappUrl, pdfFileName };
+  const api = { PAYMENT_METHODS, paymentLabel, formatDate, formatDay, formatDateTime, buildReceipt, withTotals, summaryText, whatsappNumber, whatsappUrl, pdfFileName };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.receipt = api;

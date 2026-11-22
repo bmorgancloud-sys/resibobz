@@ -104,7 +104,12 @@ test('1. three receipts, one voided: History lists 3, total excludes the void, i
   await click('Void receipt');
   await waitFor(`!!document.querySelector('dialog[open] input')`, 'void dialog');
   const dialogText = await evaluate(`document.querySelector('dialog[open] p').textContent`);
-  assert.equal(dialogText, "Void receipt INV-0003? This can't be undone.");
+  assert.equal(dialogText, 'Void receipt INV-0003? It stays in History marked VOID, is left out of every total, ' +
+    "and its number is never reused. This can't be undone.");
+  // The reason is required: OK with an empty box shows an inline error and keeps the dialog open.
+  await click('Void receipt', `document.querySelector('dialog[open]')`);
+  assert.equal(await evaluate(`document.querySelector('dialog[open] .field-error').textContent`), 'Enter a reason, e.g. wrong price');
+  assert.equal((await evaluate(`db.get('receipts', ${ids.eldon})`)).voided, undefined, 'not voided without a reason');
   await evaluate(`(() => { const i = document.querySelector('dialog[open] input'); i.value = 'Wrong item'; return true; })()`);
   await click('Void receipt', `document.querySelector('dialog[open]')`);
   await waitFor(`!!document.querySelector('.notice-danger')`, 'voided notice');
@@ -227,7 +232,7 @@ test('3. date chips: All by default, Today excludes yesterday, Custom shows From
 
 test('4. export, clear everything, import: all data matches and numbering continues', async () => {
   // Never backed up yet: History shows the reminder.
-  assert.match(await evaluate(`document.querySelector('.notice') ? document.querySelector('.notice').textContent : ''`), /never backed up/);
+  assert.match(await evaluate(`document.querySelector('.notice') ? document.querySelector('.notice').textContent : ''`), /Back up your receipts.*Last backup: never/);
 
   await go('#/settings', `!!document.getElementById('backup')`);
   await evaluate(`ui.download = (blob, name) => { blob.text().then((text) => { window.__dl = { name, text }; }); }; true`);
@@ -241,7 +246,7 @@ test('4. export, clear everything, import: all data matches and numbering contin
   assert.equal(file.schemaVersion, 2);
   assert.deepEqual(file.counters, { receipt: 3, quote: 0 });
   assert.match(file.settings.logo.dataUrl, /^data:image\/png;base64,/);
-  assert.match(await evaluate(`document.querySelector('#backup').textContent`), /Last backup: \d\d \w{3} \d{4}/);
+  assert.match(await evaluate(`document.querySelector('#backup').textContent`), /Last backup: today \(\d\d \w{3} \d{4}/);
 
   const before = await dumpAll();
 

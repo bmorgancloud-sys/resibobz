@@ -97,6 +97,7 @@
 
   async function start() {
     if (db.isTestDb) showTestDbBar();
+    safety.init(); // error handler, persistent storage, nearly-full warning; never throws
     try {
       await db.ensureDefaults();
     } catch (err) {

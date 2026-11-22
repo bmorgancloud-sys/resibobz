@@ -2,7 +2,7 @@
  * Service worker: cache-first offline shell.
  * When you add or rename a file the app loads, add it to ASSETS and bump CACHE_VERSION.
  */
-const CACHE_VERSION = 'toucanbill-v31';
+const CACHE_VERSION = 'toucanbill-v32';
 
 // Use './' for the shell, never 'index.html': some static servers redirect
 // /index.html, and a cached redirect breaks offline navigation.
@@ -26,6 +26,7 @@ const ASSETS = [
   'js/pdf.js',
   'js/detail.js',
   'js/demo.js',
+  'js/safety.js',
   'js/views/new.js',
   'js/views/history.js',
   'js/views/receipt.js',

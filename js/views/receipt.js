@@ -25,7 +25,11 @@
     return h('div', { class: 'notice notice-danger', role: 'status' },
       h('strong', null, 'Voided ' + receipt.formatDateTime(r.voidedAt)),
       r.voidReason ? h('div', null, 'Reason: ' + r.voidReason) : null,
-      h('div', null, 'Not counted in totals. The number ' + r.number + ' will not be reused.'));
+      h('div', null, 'Not counted in totals. The number ' + r.number + ' will not be reused.'),
+      h('button', {
+        type: 'button', class: 'btn btn-secondary btn-block void-copy',
+        onclick: () => { Views.new.startCorrection(r); location.hash = '#/new'; },
+      }, 'Issue corrected receipt'));
   }
 
   async function render(ctx) {
@@ -63,8 +67,10 @@
 
     if (voidBtn) {
       voidBtn.addEventListener('click', async () => {
-        const reason = await ui.ask('Void receipt ' + r.number + '? This can\'t be undone.',
-          'Reason (optional)', { okText: 'Void receipt', danger: true });
+        // Saved receipts are never edited: void (reason required) and issue a new one.
+        const reason = await ui.ask('Void receipt ' + r.number + '? It stays in History marked VOID, is left out of every total, ' +
+          'and its number is never reused. This can\'t be undone.',
+          'Reason', { okText: 'Void receipt', danger: true, required: 'Enter a reason, e.g. wrong price' });
         if (reason === null) return;
         voidBtn.disabled = true;
         try {
@@ -74,7 +80,7 @@
           await render({ ...ctx, params: [String(r.id)] }); // redraw, with the VOID PDF
         } catch (err) {
           console.error(err);
-          toast('Could not void: ' + err.message);
+          safety.notSaved(err);
           voidBtn.disabled = false;
         }
       });

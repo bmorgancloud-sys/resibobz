@@ -215,7 +215,7 @@ test('3. start converting, then back out without saving: the quote stays Open', 
   await go('#/new', `!!document.querySelector('.line-item')`);
   assert.match(await evaluate(`document.querySelector('.notice').textContent`), /Converting quote QT-0002/);
   await click('Discard');
-  await waitFor(`!document.querySelector('#view .notice') && !!document.querySelector('.line-item')`, 'draft discarded');
+  await waitFor(`!document.querySelector('#view .notice:not(.backup-banner)') && !!document.querySelector('.line-item')`, 'draft discarded');
   assert.equal(await fieldValue('Description', 0), '');
   assert.equal(await fieldValue('Name'), '');
   assert.equal(await evaluate(`Views.new.hasDraft()`), false);
@@ -258,7 +258,7 @@ test('4. a quote past its valid-until shows Expired, and converting it warns fir
   await waitFor(`location.hash === '#/new' && !!document.querySelector('.notice')`, 'converting expired quote');
   assert.match(await evaluate(`document.querySelector('.notice').textContent`), /Converting quote QT-0003/);
   await click('Discard');
-  await waitFor(`!document.querySelector('#view .notice')`, 'discarded');
+  await waitFor(`!document.querySelector('#view .notice:not(.backup-banner)')`, 'discarded');
 });
 
 test('5. cancel a quote: Cancelled, CANCELLED watermark, cannot be edited or converted', async () => {

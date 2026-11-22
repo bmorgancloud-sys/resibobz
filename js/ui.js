@@ -80,7 +80,7 @@
    * Modal dialog. With `input` (a label), shows a text box and resolves its text on OK;
    * otherwise resolves true. Cancel resolves false (and null with `input`).
    */
-  function dialog(message, { okText = 'OK', cancelText = 'Cancel', danger = false, input = null } = {}) {
+  function dialog(message, { okText = 'OK', cancelText = 'Cancel', danger = false, input = null, required = null } = {}) {
     return new Promise((resolve) => {
       const ok = h('button', { type: 'button', class: danger ? 'btn btn-danger' : 'btn' }, okText);
       const cancel = h('button', { type: 'button', class: 'btn btn-secondary' }, cancelText);
@@ -90,7 +90,12 @@
         box ? field(input, box) : null,
         h('div', { class: 'dialog-actions' }, cancel, ok));
       const done = (v) => { dlg.close(); dlg.remove(); resolve(v); };
-      ok.addEventListener('click', () => done(box ? box.value.trim() : true));
+      ok.addEventListener('click', () => {
+        // `required` (a message): OK with an empty box shows it inline and keeps the dialog open.
+        if (box && required && !box.value.trim()) { setError(box, required); box.focus(); return; }
+        done(box ? box.value.trim() : true);
+      });
+      if (box && required) box.addEventListener('input', () => setError(box, ''));
       cancel.addEventListener('click', () => done(box ? null : false));
       dlg.addEventListener('cancel', (e) => { e.preventDefault(); done(box ? null : false); });
       document.body.append(dlg);

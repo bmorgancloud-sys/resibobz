@@ -99,6 +99,7 @@ js/editor.js        Shared document editor (customer, lines, live totals, valida
 js/pdf.js           Letter/A4 receipt, quote, Daily Summary and monthly GST summary PDF (lazy-loads /lib on first use)
 js/detail.js        Shared detail-screen parts: business card, Bill to, lines + totals, Share/Download PDF panel (also used by the Daily Summary)
 js/demo.js          Sample data for Settings > Developer > Load demo data (plan() is pure, unit-tested)
+js/safety.js        Persistent storage, backup banner/export, "Something went wrong" bar, nearly-full warning, notSaved() (pure helpers unit-tested)
 js/update.js        Service worker registration + "Update available, tap to reload" prompt
 js/app.js           Router, nav, view rendering
 js/views/*.js       One file per tab: new, history, quotes, stats, products, customers, settings; plus receipt (detail,
@@ -116,7 +117,7 @@ tools/server.js     Dev static server (Node built-ins, port 3000). Not loaded by
 ```
 
 Keep files small and single-purpose. Add new files under `js/` instead of growing `app.js`.
-Script load order in `index.html` matters: money, receipt, filter, summary, stats, quote, backup, db, ui, stats-ui, typeahead, autosave, editor, pdf, detail, demo, views, update, then app.
+Script load order in `index.html` matters: money, receipt, filter, summary, stats, quote, backup, db, ui, stats-ui, typeahead, autosave, editor, pdf, detail, demo, safety, views, update, then app.
 
 ## Updates
 
@@ -170,10 +171,29 @@ Logic in `js/autosave.js`, shared with quotes (the editor runs it after saving a
   Blank and $0.00 lines are skipped. A name repeated on one receipt uses its first line.
 - Writes go through `db.putMany` in one transaction. Errors are caught and shown as a toast, and the receipt is never lost.
 
+## Safety (before the first real client)
+
+- `safety.init()` runs on start: `navigator.storage.persist()`, a global `error`/`unhandledrejection` handler that shows
+  "Something went wrong" + "Export backup now", and a banner when storage is nearly full (90% or under 25 MB left).
+  Settings > Backup shows "Storage: protected / not protected", "Last backup: N days ago" and the privacy line.
+- **Every database write is wrapped.** On failure call `safety.notSaved(err)` ("Not saved — try again"), keep the
+  form as typed, and never show a success message before the write finished. Save buttons guard against double taps.
+- `db.saveNewDocument`, `db.saveConvertedReceipt` and `db.updateQuote` run `receipt.withTotals`: line values and
+  totals are recalculated from qty/price/zero-rated/rate, and invalid lines are refused before any write.
+- Input limits: `money.priceError` (0 to $100,000,000, 2 decimals) and `money.qtyError` (over 0, up to 99,999, 3
+  decimals), plus a line-overflow check in the editor. Text fields have `maxlength`.
+- Backup banner (New Receipt and History) after 7 days without an export. Import downloads a
+  `…-before-import.json` safety copy first, then asks "Replace all data on this phone?".
+- Logo: PNG/JPG/WebP, at most 400 px wide, 600 px tall and about 200 KB.
+- **CSP** in netlify.toml (`default-src 'self'`, no `unsafe-inline`): no inline scripts, no inline `style=` attributes
+  (set styles through `el.style`), no `<iframe>`/`<object>`, nothing from another origin. `tests/browser/harness.js`
+  serves the same headers to every test, and `safety.e2e.js` checks escaping, CSP and that no request leaves the site.
+
 ## Void
 
 - **Receipts are never deleted.** `db.voidReceipt(id, reason)` sets `voided: true`, `voidedAt`, `voidReason`.
-  Voiding is one-way; the number is never reused.
+  Voiding is one-way; the number is never reused. A reason is required. A voided receipt offers
+  "Issue corrected receipt" (`Views.new.startCorrection`): a new receipt pre-filled from it, with the next number.
 - Voided receipts stay in History (red VOID badge, total struck through) and are left out of every total
   (`filter.summarize`). Any future report must skip `r.voided` too.
 - The PDF of a voided receipt has a see-through diagonal "VOID" watermark on every page and a Status: VOID row.

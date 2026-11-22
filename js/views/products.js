@@ -72,7 +72,7 @@
     const incl = h('p', { class: 'calc-line', 'aria-live': 'polite' });
 
     function updateIncl() {
-      const cents = money.parseCents(price.value);
+      const cents = money.priceError(price.value) ? null : money.parseCents(price.value);
       if (cents == null) { incl.textContent = ''; return; }
       const gst = zero.checked ? 0 : money.gstOn(cents, rateBp);
       incl.textContent = zero.checked
@@ -83,12 +83,15 @@
     zero.addEventListener('change', updateIncl);
     updateIncl();
 
+    let saving = false;
     async function onSubmit(e) {
       e.preventDefault();
+      if (saving) return; // double tap: the first save is still running
       const n = name.value.trim();
-      const cents = money.parseCents(price.value);
+      const priceErr = money.priceError(price.value);
+      const cents = priceErr ? null : money.parseCents(price.value);
       setError(name, n ? '' : 'Enter a name');
-      setError(price, cents == null ? 'Enter a price, e.g. 12.50' : '');
+      setError(price, priceErr);
       if (!n) return name.focus();
       if (cents == null) return price.focus();
 
@@ -103,14 +106,27 @@
         updatedAt: now,
       };
       if (isNew) delete record.id;
-      await db.put('products', record);
+      saving = true;
+      try {
+        await db.put('products', record);
+      } catch (err) {
+        saving = false;
+        safety.notSaved(err); // the form keeps what was typed
+        return;
+      }
       toast(isNew ? 'Product added' : 'Product saved');
       replaceRoute('#/products');
     }
 
     async function onDelete() {
       if (!(await confirm('Delete "' + p.name + '"? Past receipts are not affected.', { okText: 'Delete', danger: true }))) return;
-      await db.remove('products', id);
+      try {
+        await db.remove('products', id);
+      } catch (err) {
+        console.error(err);
+        toast('Not deleted — try again');
+        return;
+      }
       toast('Product deleted');
       replaceRoute('#/products');
     }

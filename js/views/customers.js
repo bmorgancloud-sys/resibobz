@@ -63,8 +63,10 @@
     address.value = c.address || '';
     const tin = h('input', { type: 'text', value: c.tin || '', maxlength: 40, autocapitalize: 'characters', autocomplete: 'off' });
 
+    let saving = false;
     async function onSubmit(e) {
       e.preventDefault();
+      if (saving) return; // double tap: the first save is still running
       const n = name.value.trim();
       const em = email.value.trim();
       const emailBad = em && !email.checkValidity();
@@ -85,14 +87,27 @@
         updatedAt: now,
       };
       if (isNew) delete record.id;
-      await db.put('customers', record);
+      saving = true;
+      try {
+        await db.put('customers', record);
+      } catch (err) {
+        saving = false;
+        safety.notSaved(err); // the form keeps what was typed
+        return;
+      }
       toast(isNew ? 'Customer added' : 'Customer saved');
       replaceRoute('#/customers');
     }
 
     async function onDelete() {
       if (!(await confirm('Delete "' + c.name + '"? Past receipts are not affected.', { okText: 'Delete', danger: true }))) return;
-      await db.remove('customers', id);
+      try {
+        await db.remove('customers', id);
+      } catch (err) {
+        console.error(err);
+        toast('Not deleted — try again');
+        return;
+      }
       toast('Customer deleted');
       replaceRoute('#/customers');
     }

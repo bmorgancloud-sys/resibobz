@@ -51,11 +51,17 @@
     return CUSTOMER_KEYS.some((k) => draft[k].trim()) || draft.lines.some((l) => !isBlank(l));
   }
 
+  /** True if qty × price is too big to add up exactly (at the highest rate, 100%). */
+  function lineTooLarge(line) {
+    try { money.calcLine(line, 10000); return false; } catch { return true; }
+  }
+
   /** Parsed line or null if any field is invalid. */
   function parseLine(l) {
+    if (!l.description.trim() || money.qtyError(l.qty) || money.priceError(l.price)) return null;
     const qtyMilli = money.parseQty(l.qty);
     const unitCents = money.parseCents(l.price);
-    if (!l.description.trim() || qtyMilli == null || unitCents == null) return null;
+    if (lineTooLarge({ qtyMilli, unitCents, zeroRated: l.zeroRated })) return null;
     return { description: l.description, qtyMilli, unitCents, zeroRated: l.zeroRated };
   }
 
@@ -235,7 +241,13 @@
 
     function updateTotals() {
       const parsed = draft.lines.map(parseLine).filter(Boolean);
-      const t = money.calcTotals(parsed, rateBp);
+      let t;
+      try {
+        t = money.calcTotals(parsed, rateBp);
+      } catch {
+        totalsEl.replaceChildren(h('span', { class: 'sticky-total' }, 'Total too large'));
+        return;
+      }
       // Compact so the sticky bar stays short on a 360px-wide phone.
       totalsEl.replaceChildren(
         h('span', { class: 'sticky-sub' }, 'Subtotal ' + money.formatCents(t.subtotalCents)),
@@ -286,6 +298,7 @@
 
     async function onSubmit(e) {
       e.preventDefault();
+      if (saveBtn.disabled) return; // double tap: the first save is still running
       // Drop fully blank lines, but keep at least one to show errors on.
       const candidates = draft.lines.filter((l) => !isBlank(l));
       if (!candidates.length) {
@@ -300,11 +313,16 @@
       for (const l of candidates) {
         const { desc, qty, price } = l.inputs;
         const dOk = !!l.description.trim();
-        const qOk = money.parseQty(l.qty) != null;
-        const pOk = money.parseCents(l.price) != null;
+        const qErr = money.qtyError(l.qty);
+        let pErr = money.priceError(l.price);
+        if (!qErr && !pErr && lineTooLarge({ qtyMilli: money.parseQty(l.qty), unitCents: money.parseCents(l.price) })) {
+          pErr = 'This line total is too large';
+        }
+        const qOk = !qErr;
+        const pOk = !pErr;
         setError(desc, dOk ? '' : 'Enter a description');
-        setError(qty, qOk ? '' : 'Invalid');
-        setError(price, pOk ? '' : 'Enter a price, e.g. 12.50');
+        setError(qty, qErr);
+        setError(price, pErr);
         if (!firstBad) firstBad = !dOk ? desc : !qOk ? qty : !pOk ? price : null;
         const p = parseLine(l);
         if (p) parsed.push(p);
@@ -329,7 +347,7 @@
         saved = await opts.save(input, fresh);
       } catch (err) {
         console.error(err);
-        toast('Could not save: ' + err.message);
+        safety.notSaved(err); // the form keeps everything typed
         saveBtn.disabled = false;
         return;
       }

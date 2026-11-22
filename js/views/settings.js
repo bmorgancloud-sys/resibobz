@@ -8,16 +8,37 @@
   'use strict';
   const { h, field, setError, toast, checkbox } = ui;
 
-  const LOGO_MAX_W = 400;
+  const LOGO_MAX_W = 400;      // plenty for the PDF's logo box
+  const LOGO_MAX_SIDE = 600;   // very tall images are capped too
+  const LOGO_MAX_BYTES = 200 * 1024;
   const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+
+  /** Decoded size of a base64 data URL, in bytes. */
+  const logoBytes = (dataUrl) => Math.floor((dataUrl.length - dataUrl.indexOf(',') - 1) * 3 / 4);
+
+  /** Draw img scaled by `scale` and encode it as format ('PNG' | 'JPEG'). */
+  function draw(img, scale, format) {
+    const width = Math.max(1, Math.round(img.naturalWidth * scale));
+    const height = Math.max(1, Math.round(img.naturalHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const c2d = canvas.getContext('2d');
+    // A canvas starts fully transparent; only JPEG (no alpha) gets a white backing.
+    if (format === 'JPEG') { c2d.fillStyle = '#fff'; c2d.fillRect(0, 0, width, height); }
+    c2d.imageSmoothingQuality = 'high';
+    c2d.drawImage(img, 0, 0, width, height);
+    const dataUrl = format === 'JPEG' ? canvas.toDataURL('image/jpeg', 0.88) : canvas.toDataURL('image/png');
+    return { dataUrl, format, width, height };
+  }
 
   function previewNumber(prefix, counter, pad) {
     return prefix + String(counter + 1).padStart(pad, '0');
   }
 
   /**
-   * Read a PNG/JPG/WebP file, shrink it to at most LOGO_MAX_W pixels wide (never enlarge),
-   * and return { dataUrl, format, width, height } ready for jsPDF.addImage.
+   * Read a PNG/JPG/WebP file, shrink it to at most LOGO_MAX_W wide and LOGO_MAX_SIDE tall (never
+   * enlarge) and to about 200 KB at most, and return { dataUrl, format, width, height } ready for jsPDF.addImage.
    * JPEG stays JPEG (smaller). PNG and WebP become PNG, which keeps transparency
    * and is a format jsPDF can embed.
    */
@@ -31,20 +52,19 @@
         i.onerror = () => reject(new Error('Could not read that image. Try a PNG or JPG.'));
         i.src = url;
       });
-      const scale = Math.min(1, LOGO_MAX_W / img.naturalWidth);
-      const width = Math.max(1, Math.round(img.naturalWidth * scale));
-      const height = Math.max(1, Math.round(img.naturalHeight * scale));
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const c2d = canvas.getContext('2d');
+      if (!img.naturalWidth || !img.naturalHeight) throw new Error('Could not read that image. Try a PNG or JPG.');
       const format = file.type === 'image/jpeg' ? 'JPEG' : 'PNG';
-      // A canvas starts fully transparent; only JPEG (no alpha) gets a white backing.
-      if (format === 'JPEG') { c2d.fillStyle = '#fff'; c2d.fillRect(0, 0, width, height); }
-      c2d.imageSmoothingQuality = 'high';
-      c2d.drawImage(img, 0, 0, width, height);
-      const dataUrl = format === 'JPEG' ? canvas.toDataURL('image/jpeg', 0.88) : canvas.toDataURL('image/png');
-      return { dataUrl, format, width, height };
+      // Fit inside LOGO_MAX_W wide and LOGO_MAX_SIDE tall (never enlarge), then shrink further until the
+      // stored image is about LOGO_MAX_BYTES or less. A big photo PNG may fall back to JPEG to get there.
+      let scale = Math.min(1, LOGO_MAX_W / img.naturalWidth, LOGO_MAX_SIDE / img.naturalHeight);
+      let out = draw(img, scale, format);
+      while (logoBytes(out.dataUrl) > LOGO_MAX_BYTES && out.width > 32) {
+        scale *= 0.8;
+        out = draw(img, scale, format);
+      }
+      if (logoBytes(out.dataUrl) > LOGO_MAX_BYTES) out = draw(img, scale, 'JPEG');
+      if (logoBytes(out.dataUrl) > LOGO_MAX_BYTES) throw new Error('That image is too detailed to use as a logo. Try a simpler PNG or JPG.');
+      return out;
     } finally {
       URL.revokeObjectURL(url);
     }
@@ -57,7 +77,9 @@
    */
   function backupSection(ctx, lastBackupAt) {
     const last = h('p', { class: 'field-hint' });
-    const showLast = (iso) => { last.textContent = 'Last backup: ' + (iso ? receipt.formatDateTime(iso) : 'never'); };
+    const showLast = (iso) => {
+      last.textContent = 'Last backup: ' + safety.daysAgo(iso) + (iso ? ' (' + receipt.formatDateTime(iso) + ')' : '');
+    };
     showLast(lastBackupAt);
 
     const err = h('p', { class: 'field-error', hidden: true, role: 'alert' });
@@ -68,15 +90,11 @@
       showError('');
       exportBtn.disabled = true;
       try {
-        const now = new Date();
-        const data = await backup.collect(now);
-        ui.download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), backup.fileName(now));
-        await db.setSetting('lastBackupAt', now.toISOString());
-        showLast(now.toISOString());
+        showLast(await safety.exportBackup());
         toast('Backup saved to your downloads');
       } catch (e) {
         console.error(e);
-        showError('Could not export: ' + e.message);
+        showError('Backup not saved — try again. (' + e.message + ')');
       } finally {
         exportBtn.disabled = false;
       }
@@ -96,9 +114,21 @@
         showError('Could not import "' + f.name + '": ' + e.message + ' Your data was not changed.');
         return;
       }
+      // Safety copy first: download everything on the phone now, so a wrong file can be undone.
+      try {
+        const now = new Date();
+        const current = await backup.collect(now);
+        ui.download(new Blob([JSON.stringify(current, null, 2)], { type: 'application/json' }),
+          backup.fileName(now).replace(/\.json$/, '-before-import.json'));
+      } catch (e) {
+        console.error(e);
+        showError('Could not save a copy of your current data first, so nothing was imported. Your data was not changed.');
+        return;
+      }
       const ok = await ui.confirm(
-        'This backup has ' + backup.summary(data) + '. Replace all data on this device with it? ' +
-        'Everything here now (receipts, products, customers, settings and logo) will be replaced.',
+        'Replace all data on this phone? This backup has ' + backup.summary(data) + '. ' +
+        'Everything here now (receipts, products, customers, settings and logo) will be replaced. ' +
+        'A copy of your current data was saved to your downloads first.',
         { okText: 'Replace all data', danger: true });
       if (!ok) return;
       try {
@@ -115,12 +145,28 @@
 
     return h('section', { class: 'card', id: 'backup' },
       h('h2', null, 'Backup'),
+      h('p', { class: 'backup-privacy' }, 'Your receipts are stored only on this device. Back up weekly.'),
       h('p', { class: 'field-hint backup-intro' },
-        'Your data lives only on this device. Export a backup regularly and keep it somewhere safe (e.g. Google Drive or WhatsApp to yourself).'),
+        'Keep the backup file somewhere safe, e.g. Google Drive or WhatsApp it to yourself.'),
       h('div', { class: 'form-actions' }, exportBtn, file, pick),
       last,
+      storageLine(),
       err,
       h('p', { class: 'field-hint' }, 'Importing replaces all data on this device. Unsaved changes on this screen will be lost.'));
+  }
+
+  /** "Storage: protected" (the browser won't clear it to free space) or "not protected", plus space used. */
+  function storageLine() {
+    const line = h('p', { class: 'field-hint storage-status' }, 'Storage: checking…');
+    safety.status().then((s) => {
+      let text = 'Storage: ' + (s.persisted ? 'protected' : 'not protected');
+      if (s.persisted === null) text = 'Storage: not protected (this browser can\'t lock it)';
+      if (s.usage != null && s.quota) text += ' · ' + safety.formatBytes(s.usage) + ' used';
+      if (s.nearlyFull) text += ' · nearly full';
+      line.textContent = text;
+      line.classList.toggle('storage-warn', !s.persisted || s.nearlyFull);
+    }, () => { line.textContent = 'Storage: unknown'; });
+    return line;
   }
 
   /** App card: the running version (CACHE_VERSION from sw.js) and a manual update check (js/update.js). */
@@ -286,22 +332,32 @@
         return;
       }
 
-      await db.setSettings({
-        business: {
-          name: name.value.trim(),
-          address: address.value.trim(),
-          phone: phone.value.trim(),
-          email: em,
-          gstTin: tin.value.trim(),
-        },
-        logo,
-        gstRateBp: rateBp,
-        receiptPrefix: receiptPrefix.value.trim(),
-        quotePrefix: quotePrefix.value.trim(),
-        receiptFooter: footer.value.trim(),
-        pageSize,
-        autoSaveContacts: autoSave.checked,
-      });
+      const saveBtn = form.querySelector('.sticky-bar button');
+      if (saveBtn.disabled) return; // already saving (double tap)
+      saveBtn.disabled = true;
+      try {
+        await db.setSettings({
+          business: {
+            name: name.value.trim(),
+            address: address.value.trim(),
+            phone: phone.value.trim(),
+            email: em,
+            gstTin: tin.value.trim(),
+          },
+          logo,
+          gstRateBp: rateBp,
+          receiptPrefix: receiptPrefix.value.trim(),
+          quotePrefix: quotePrefix.value.trim(),
+          receiptFooter: footer.value.trim(),
+          pageSize,
+          autoSaveContacts: autoSave.checked,
+        });
+      } catch (err) {
+        safety.notSaved(err); // the form keeps everything typed
+        return;
+      } finally {
+        saveBtn.disabled = false;
+      }
       toast('Settings saved');
     }
 

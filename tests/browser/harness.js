@@ -26,6 +26,18 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/cs
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** The security headers netlify.toml sends on "/*", so every test runs under the production CSP. */
+function securityHeaders() {
+  const toml = fs.readFileSync(path.join(ROOT, 'netlify.toml'), 'utf8');
+  const block = /for = "\/\*"\s*\[headers\.values\]([\s\S]*?)(?:\n\s*\n|\[\[)/.exec(toml);
+  if (!block) throw new Error('netlify.toml has no [[headers]] block for "/*"');
+  const out = {};
+  for (const m of block[1].matchAll(/^\s*([\w-]+)\s*=\s*"(.*)"\s*$/gm)) out[m[1]] = m[2];
+  if (!out['Content-Security-Policy']) throw new Error('netlify.toml "/*" block has no Content-Security-Policy');
+  return out;
+}
+const SECURITY_HEADERS = securityHeaders();
+
 /**
  * Serve the app. server.swVersion, when set, replaces CACHE_VERSION in sw.js,
  * which is how a test simulates deploying an update. server.root (default: this repo) is the folder
@@ -42,6 +54,8 @@ function serve(root = ROOT) {
       return;
     }
     const headers = { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' };
+    // Dev-only pages under tests/ (inline scripts; Netlify returns 404 for them) run without the CSP.
+    if (!p.startsWith('/tests/')) Object.assign(headers, SECURITY_HEADERS);
     if (p === '/sw.js' && server.swVersion) {
       const src = fs.readFileSync(file, 'utf8').replace(/const CACHE_VERSION = '[^']*'/, `const CACHE_VERSION = '${server.swVersion}'`);
       res.writeHead(200, headers).end(src);

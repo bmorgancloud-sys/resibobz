@@ -34,6 +34,18 @@
       }
     }
     if (banner) el.append(banner);
+    if (!draft.fromQuote && draft.replaces) {
+      el.append(h('div', { class: 'notice', role: 'status' },
+        h('span', null, 'Copied from voided receipt ' + draft.replaces.number + '. Fix what was wrong and save. It gets a new number.'),
+        ' ',
+        h('button', {
+          type: 'button', class: 'link-btn',
+          onclick: () => { draft = editor.newDraft('receipt'); el.replaceChildren(); render(ctx); },
+        }, 'Discard')));
+    }
+    const [lastBackupAt, receiptCount] = await Promise.all([db.getSetting('lastBackupAt'), db.count('receipts')]);
+    const backupBanner = safety.backupBanner(lastBackupAt, receiptCount);
+    if (backupBanner) el.append(backupBanner);
 
     await editor.mount(el, {
       draft,
@@ -59,6 +71,16 @@
     draft.fromQuote = { id: q.id, number: q.number };
   }
 
+  /**
+   * Start a corrected copy of voided receipt r: same customer, lines and payment method, saved as a
+   * NEW receipt with the next number (the voided one stays in History). Replaces the current draft.
+   */
+  function startCorrection(r) {
+    draft = editor.fromDocument(r, 'receipt');
+    if (r.paymentMethod) draft.paymentMethod = r.paymentMethod;
+    draft.replaces = { id: r.id, number: r.number };
+  }
+
   /** The quote being converted in the current draft, or null. */
   function convertingQuote() {
     return draft.fromQuote || null;
@@ -66,8 +88,8 @@
 
   /** True if the in-progress receipt has anything typed in it (used to hold off update reloads). */
   function hasDraft() {
-    return !!draft.fromQuote || editor.hasContent(draft);
+    return !!draft.fromQuote || !!draft.replaces || editor.hasContent(draft);
   }
 
-  (window.Views = window.Views || {}).new = { render, hasDraft, startConversion, convertingQuote };
+  (window.Views = window.Views || {}).new = { render, hasDraft, startConversion, startCorrection, convertingQuote };
 })();

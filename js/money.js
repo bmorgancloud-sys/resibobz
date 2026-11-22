@@ -143,12 +143,44 @@
     return roundDiv(bzdCents, BZD_PER_USD);
   }
 
+  // ---- Friendly validation (inline form errors) ----
+
+  /** Sensible ceilings, so a typo can't make a line total too large to add up safely. */
+  const MAX_PRICE_CENTS = 10000000000; // $100,000,000.00
+  const MAX_QTY_MILLI = 99999000;    // 99,999
+
+  /** True if `s` is a plain number with more than `places` decimals (e.g. "12.505" for money). */
+  const tooManyDecimals = (s, places) => new RegExp('^-?[$\\d,\\s]*\\.\\d{' + (places + 1) + ',}$').test(s);
+
+  /** '' if `input` is a valid price (0 or more, at most 2 decimals, up to $100,000,000), else a message. */
+  function priceError(input) {
+    const s = String(input == null ? '' : input).trim();
+    if (!s) return 'Enter a price, e.g. 12.50';
+    if (/^-/.test(s.replace(/[$\s]/g, ''))) return 'Price can\'t be negative';
+    const v = parseCents(s);
+    if (v == null) return tooManyDecimals(s, 2) ? 'Use at most 2 decimals, e.g. 12.50' : 'Enter a price, e.g. 12.50';
+    if (v > MAX_PRICE_CENTS) return 'Price is too large (max $100,000,000.00)';
+    return '';
+  }
+
+  /** '' if `input` is a valid quantity (more than 0, at most 3 decimals, up to 99,999), else a message. */
+  function qtyError(input) {
+    const s = String(input == null ? '' : input).trim();
+    if (!s) return 'Enter a quantity';
+    const v = parseScaled(s, 3, true);
+    if (v == null) return tooManyDecimals(s, 3) ? 'Use at most 3 decimals' : 'Enter a number, e.g. 2 or 1.5';
+    if (v <= 0) return 'Quantity must be more than 0';
+    if (v > MAX_QTY_MILLI) return 'Quantity is too large (max 99,999)';
+    return '';
+  }
+
   const api = {
     roundDiv,
     parseCents, formatCents, centsToInput,
     parseQty, formatQty,
     parseRate, formatRate,
     gstOn, calcLine, calcTotals,
+    MAX_PRICE_CENTS, MAX_QTY_MILLI, priceError, qtyError,
     BZD_PER_USD, bzdToUsdCents,
   };
 

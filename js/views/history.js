@@ -40,12 +40,8 @@
       return;
     }
 
-    if (filter.needsBackup(lastBackupAt, all.length)) {
-      el.append(h('div', { class: 'notice', role: 'status' },
-        h('span', null, lastBackupAt ? 'No backup in the last 7 days.' : 'You have never backed up your receipts.'),
-        ' ',
-        h('a', { href: '#/settings/backup' }, 'Back up now')));
-    }
+    const banner = safety.backupBanner(lastBackupAt, all.length);
+    if (banner) el.append(banner);
 
     // ---- Controls ----
     const search = h('input', {

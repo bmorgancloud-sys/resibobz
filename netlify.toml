@@ -3,6 +3,17 @@
   publish = "."
   command = ""
 
+# Security headers on every response. Netlify applies every matching [[headers]] rule, so these
+# combine with the Cache-Control rules below. Everything the app loads is its own file: no inline
+# scripts, no CDNs, no third parties (tests/browser/harness.js serves this same CSP to every test).
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; img-src 'self' data: blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; worker-src 'self'"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
 # Never cache the app shell or the service worker, so a deploy is picked up on the next load.
 [[headers]]
   for = "/"

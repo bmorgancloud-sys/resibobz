@@ -234,11 +234,12 @@
    */
   async function saveNewDocument(type, record) {
     assertDocType(type);
+    const checked = receipt.withTotals(record); // totals always recalculated from the lines; throws before any write
     const { store } = DOC_TYPES[type];
     const idb = await open();
     const tx = idb.transaction(['settings', store], 'readwrite');
     const number = await takeNumber(tx.objectStore('settings'), type);
-    const doc = { ...record, number };
+    const doc = { ...checked, number };
     delete doc.id;
     const id = await promisify(tx.objectStore(store).add(doc));
     await txDone(tx);
@@ -286,6 +287,7 @@
    * Returns the saved record.
    */
   async function updateQuote(record) {
+    record = receipt.withTotals(record); // recalculated from the lines, never trusted
     const idb = await open();
     const tx = idb.transaction('quotes', 'readwrite');
     const done = txDone(tx);
@@ -318,6 +320,7 @@
    * Refused if the quote is gone, already converted or cancelled. Returns the saved receipt.
    */
   async function saveConvertedReceipt(record, quoteId, now = new Date()) {
+    record = receipt.withTotals(record); // recalculated from the lines, never trusted
     const idb = await open();
     const tx = idb.transaction(['settings', 'receipts', 'quotes'], 'readwrite');
     const done = txDone(tx);

@@ -632,3 +632,23 @@ a.rank-name:hover { text-decoration: underline; }
 /* Dev only: the app is using tests/seed.html's test database (app.js). */
 .test-db-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .test-db-bar .btn { min-height: var(--tap); }
+
+/* ---- Safety (js/safety.js) ---- */
+.backup-banner { display: grid; gap: 8px; }
+.backup-banner .btn { justify-self: start; }
+.backup-privacy { margin: 0 0 8px; font-weight: 600; }
+.notice-danger .void-copy { margin-top: 10px; color: var(--text); }
+/* "Something went wrong": fixed above the bottom nav, never wider than the screen. */
+.error-bar {
+  position: fixed; left: 16px; right: 16px;
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px);
+  z-index: 70; max-width: 480px; margin: 0 auto;
+  display: grid; gap: 6px; min-width: 0;
+  padding: 14px 16px; border-radius: var(--radius);
+  background: #fdecea; border: 1px solid #f3c4c0; color: var(--text);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+.error-bar strong { color: var(--danger); }
+.error-bar-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 4px; }
+@media (min-width: 420px) { .error-bar-actions { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.storage-warn { color: var(--danger); font-weight: 600; }

@@ -117,7 +117,7 @@
           await renderDetail({ ...ctx, params: [String(q.id)] }); // redraw, with the CANCELLED PDF
         } catch (err) {
           console.error(err);
-          toast('Could not cancel: ' + err.message);
+          safety.notSaved(err);
           cancelBtn.disabled = false;
         }
       });
