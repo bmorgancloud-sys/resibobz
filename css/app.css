@@ -32,7 +32,12 @@
 /* Author `display` rules (e.g. .btn) would otherwise override the hidden attribute. */
 [hidden] { display: none !important; }
 
-html, body { margin: 0; height: 100%; }
+/* min-height, not height: a body fixed at one screen tall ends the sticky header's containing block
+   after the first screen, so the header scrolled away on long pages (Stats, History, Settings). */
+/* scroll-padding-top: a field focused after a failed save (or any scrollIntoView) lands below the
+   sticky header, not under it. */
+html { margin: 0; height: 100%; scroll-padding-top: calc(env(safe-area-inset-top) + 72px); }
+body { margin: 0; min-height: 100%; }
 
 body {
   background: var(--bg);
