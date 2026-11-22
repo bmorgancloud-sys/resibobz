@@ -8,9 +8,20 @@
 - Never add analytics, tracking, ads or third-party scripts. Vendor any library locally.
 - Show me the manual checks I need to do on my phone at the end of every task.
 
-# ResiboBZ
+# Toucan Bill (formerly ResiboBZ)
 
-A GST receipt/invoice maker for Belize small businesses.
+A GST receipt/invoice maker for Belize small businesses. Tagline: "Our national bird. Its bill is your receipt."
+
+## Brand and theme
+
+- Renamed from ResiboBZ to Toucan Bill. **Stored names kept the old name on purpose** (never rename them): IndexedDB
+  `resibobz` / `resibobz-test`, localStorage `resibobz.*`, the backup file marker `app: "ResiboBZ"` (import also
+  accepts `"Toucan Bill"`), and the manifest `id` `"./"`. `tests/browser/rebrand.e2e.js` builds a database with the
+  pre-rebrand production app (commit 2c6b92f, read from git) and checks it survives the update untouched.
+- Sunny theme (tokens on `:root` in app.css): header `--header-bg` #FFC83D with #111111 text; primary buttons
+  `--brand` #111111 with `--brand-ink` #FFC83D; selected chips/segments #111111 with white text. Accents
+  (`--accent-green` #6DBE45, `--accent-orange` #F58220, `--accent-blue` #4FA3D9, `--accent-red` #E63B2E) are for
+  charts and badges only, always with #111111 text. Never use yellow or orange for text on white.
 
 ## Constraints
 
@@ -93,7 +104,7 @@ js/app.js           Router, nav, view rendering
 js/views/*.js       One file per tab: new, history, quotes, stats, products, customers, settings; plus receipt (detail,
                     #/receipt/<id>), quote (detail, #/quote/<id>) and quote-edit (#/quote/new, #/quote/<id>/edit), summary (#/summary[/YYYY-MM-DD])
 lib/                Vendored third-party libs (jsPDF, autotable, Chart.js); versions in lib/README.md
-icons/              App icons: icon.svg (source), 180 (apple-touch-icon)/192/512 PNGs, maskable 512 PNG (from icon-maskable.svg)
+icons/              App icons: favicon.svg (source), favicon-32, apple-touch-icon (180), 192/512 PNGs, maskable 512 PNG
 tests/              node:test unit tests for the pure modules
 tests/browser/      *.e2e.js: headless-Chrome tests of the real app (no npm; drives Chrome over CDP)
 tests/stats.test.html  Browser runner for tests/stats.cases.js (Node runs the same cases via stats.test.js)
@@ -191,7 +202,7 @@ then the day's receipts. A day with nothing counted shows "No receipts on this d
 
 ## Backup
 
-- Settings > Backup. Export downloads `resibobz-backup-YYYY-MM-DD.json`:
+- Settings > Backup. Export downloads `toucanbill-backup-YYYY-MM-DD.json`:
   `{ app: "ResiboBZ", schemaVersion: 1, exportedAt, settings (incl. logo data URL), counters: {receipt, quote},
   products, customers, receipts, quotes }`. Records keep their ids. `lastBackupAt` is per device, not exported.
 - Import: `backup.parse` validates everything first, then the user confirms "Replace all data".

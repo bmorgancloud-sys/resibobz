@@ -146,6 +146,7 @@
     const btn = h('button', { type: 'button', class: 'btn btn-secondary btn-block', onclick: onCheck }, 'Check for updates');
     return h('section', { class: 'card', id: 'app' },
       h('h2', null, 'App'),
+      h('p', { class: 'app-brand' }, h('strong', null, 'Toucan Bill'), h('br'), 'Our national bird. Its bill is your receipt.'),
       h('p', { class: 'field-hint' }, 'App version: ', ver),
       btn);
   }

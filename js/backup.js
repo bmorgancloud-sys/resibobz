@@ -19,7 +19,11 @@
 (function (root) {
   'use strict';
 
+  // The file marker stays "ResiboBZ" after the rebrand to Toucan Bill: it is part of the data format,
+  // so every backup ever exported (and older installs) keeps reading the same files. "Toucan Bill" is
+  // also accepted, in case a later version writes it.
   const APP = 'ResiboBZ';
+  const APP_NAMES = [APP, 'Toucan Bill'];
   const SCHEMA_VERSION = 2;
   const SUPPORTED_VERSIONS = [1, 2];
   const COUNTER_TYPES = ['receipt', 'quote'];
@@ -37,7 +41,7 @@
   }
 
   function fileName(now = new Date()) {
-    return 'resibobz-backup-' + dayString(now) + '.json';
+    return 'toucanbill-backup-' + dayString(now) + '.json';
   }
 
   /**
@@ -133,9 +137,9 @@
     } catch {
       fail('This file is not valid JSON. It may be damaged or not a backup.');
     }
-    if (!isObj(data) || data.app !== APP) fail('This is not a ResiboBZ backup file.');
+    if (!isObj(data) || !APP_NAMES.includes(data.app)) fail('This is not a Toucan Bill backup file.');
     if (!SUPPORTED_VERSIONS.includes(data.schemaVersion)) {
-      fail('This backup is from a different version of ResiboBZ (format ' + data.schemaVersion + ') and cannot be imported. Update the app and try again.');
+      fail('This backup is from a different version of Toucan Bill (format ' + data.schemaVersion + ') and cannot be imported. Update the app and try again.');
     }
     if (!isStr(data.exportedAt) || isNaN(new Date(data.exportedAt))) fail('The backup date is damaged.');
     checkSettings(data.settings);

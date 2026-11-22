@@ -36,7 +36,16 @@ test('build: header, settings without counters or device keys, counters section'
 });
 
 test('fileName uses the local date', () => {
-  assert.equal(backup.fileName(NOW), 'resibobz-backup-2026-11-20.json');
+  assert.equal(backup.fileName(NOW), 'toucanbill-backup-2026-11-20.json');
+});
+
+test('rebrand: the file marker stays "ResiboBZ" (data format unchanged); "Toucan Bill" files import too', () => {
+  const b = backup.build(dump(), NOW);
+  assert.equal(b.app, 'ResiboBZ');
+  // A backup exported by the pre-rebrand app (same JSON) still imports...
+  assert.equal(backup.parse(JSON.stringify(b)).receipts.length, 3);
+  // ...and so does one marked with the new name.
+  assert.equal(backup.parse(JSON.stringify({ ...b, app: 'Toucan Bill' })).receipts.length, 3);
 });
 
 test('parse accepts its own output (round trip) and summarises it', () => {
@@ -67,8 +76,8 @@ test('parse rejects bad files with a clear message', () => {
   };
   bad('{not json', /not valid JSON/);
   bad('', /not valid JSON/);
-  bad('[]', /not a ResiboBZ backup/);
-  bad((b) => { b.app = 'Other'; }, /not a ResiboBZ backup/);
+  bad('[]', /not a Toucan Bill backup/);
+  bad((b) => { b.app = 'Other'; }, /not a Toucan Bill backup/);
   bad((b) => { b.schemaVersion = 99; }, /different version/);
   bad((b) => { delete b.schemaVersion; }, /different version/);
   bad((b) => { delete b.receipts; }, /receipts list is missing/);

@@ -83,7 +83,7 @@
         resolve(idb);
       };
       req.onerror = () => reject(req.error);
-      req.onblocked = () => reject(new Error('Database upgrade blocked: close other ResiboBZ tabs.'));
+      req.onblocked = () => reject(new Error('Database upgrade blocked: close other Toucan Bill tabs.'));
     }).catch((err) => { dbPromise = null; throw err; });
     return dbPromise;
   }

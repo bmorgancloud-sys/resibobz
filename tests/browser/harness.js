@@ -28,14 +28,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Serve the app. server.swVersion, when set, replaces CACHE_VERSION in sw.js,
- * which is how a test simulates deploying an update.
+ * which is how a test simulates deploying an update. server.root (default: this repo) is the folder
+ * served; rebrand.e2e.js points it at an older version of the app, then back, on the same origin.
  */
-function serve() {
+function serve(root = ROOT) {
   const server = http.createServer((req, res) => {
+    const base = path.resolve(server.root);
     let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     if (p.endsWith('/')) p += 'index.html';
-    const file = path.join(ROOT, p);
-    if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+    const file = path.join(base, p);
+    if (!file.startsWith(base) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
       res.writeHead(404).end();
       return;
     }
@@ -48,6 +50,7 @@ function serve() {
     res.writeHead(200, headers);
     fs.createReadStream(file).pipe(res);
   });
+  server.root = root;
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
@@ -108,8 +111,8 @@ async function connect(wsUrl) {
 /**
  * Start server + Chrome and open the app at `hash`. Returns page helpers and close().
  */
-async function open(hash = '#/new') {
-  const server = await serve();
+async function open(hash = '#/new', { root } = {}) {
+  const server = await serve(root);
   const base = `http://localhost:${server.address().port}/`;
   let chrome;
   try {

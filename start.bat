@@ -1,9 +1,9 @@
 @echo off
-rem ResiboBZ: double-click to start the dev server on http://localhost:3000 and open it.
+rem Toucan Bill: double-click to start the dev server on http://localhost:3000 and open it.
 rem Runs tools\server.js with Node's full path (PATH isn't reliable on double-click).
 rem Keep this window open while you use the app; close it to stop the server.
 setlocal
-title ResiboBZ server
+title Toucan Bill server
 
 cd /d "%~dp0"
 if errorlevel 1 goto no_folder

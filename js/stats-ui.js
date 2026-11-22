@@ -148,7 +148,7 @@
   // ---- Charts (Chart.js from lib/, loaded on first use, cached offline by sw.js) ----
 
   const CHART_LIB = 'lib/chart.umd.min.js';
-  const BRAND = '#0b5cab';     // the app's --brand; validated as a single-series chart colour on white
+  const BRAND = '#4FA3D9';     // Sunny theme accent blue (css --accent-blue): the single chart series
   const INK_MUTED = '#5b6575'; // --muted
   const GRID = '#e8ecf2';
   let chartLoading = null;

@@ -40,7 +40,7 @@
 
   function setTitle(text) {
     titleEl.textContent = text;
-    document.title = text + ' · ResiboBZ';
+    document.title = text + ' · Toucan Bill';
   }
 
   async function navigate() {

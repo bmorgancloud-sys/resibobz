@@ -21,7 +21,7 @@
   const FOOTER_SPACE = 24;           // reserved at the bottom of each page
   const TEXT = [26, 31, 41];
   const MUTED = [91, 101, 117];
-  const BRAND = [11, 92, 171];
+  const BRAND = [17, 17, 17]; // near-black #111111 (Sunny theme ink): title and table header
   const RULE = [221, 226, 234];
   const DANGER = [179, 38, 30];
   const PT_TO_MM = 0.3528;
@@ -156,7 +156,7 @@
     const { jsPDF } = window.jspdf;
     const page = PAGE_SIZES[pageSize] || PAGE_SIZES[DEFAULT_PAGE_SIZE];
     const doc = new jsPDF({ unit: 'mm', format: page.format });
-    doc.setProperties({ ...props, creator: 'ResiboBZ' });
+    doc.setProperties({ ...props, creator: 'Toucan Bill' });
     doc.setLineHeightFactor(1.25);
     return { doc, pageW: page.w, pageH: page.h };
   }

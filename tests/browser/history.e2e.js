@@ -196,8 +196,8 @@ test('3. date chips: All by default, Today excludes yesterday, Custom shows From
   await tapChip('Today');
   assert.deepEqual(await selectedChip(), ['Today']);
   assert.deepEqual(await numbers(), ['INV-0003', 'INV-0002']);
-  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.chips input:checked + label')).backgroundColor`), 'rgb(11, 92, 171)',
-    'selected chip is filled blue');
+  assert.deepEqual(await evaluate(`(() => { const s = getComputedStyle(document.querySelector('.chips input:checked + label')); return [s.backgroundColor, s.color]; })()`),
+    ['rgb(17, 17, 17)', 'rgb(255, 255, 255)'], 'selected chip is #111111 with white text');
 
   // The whole 48px button is the tap target: a tap 22px above its centre still selects it.
   await tapChip('Week', -22);
@@ -235,7 +235,7 @@ test('4. export, clear everything, import: all data matches and numbering contin
   await waitFor('!!window.__dl', 'backup download');
   const { name, text } = await evaluate('window.__dl');
   const today = await evaluate(`filter.dayString(new Date())`);
-  assert.equal(name, 'resibobz-backup-' + today + '.json');
+  assert.equal(name, 'toucanbill-backup-' + today + '.json');
   const file = JSON.parse(text);
   assert.equal(file.app, 'ResiboBZ');
   assert.equal(file.schemaVersion, 2);
@@ -294,7 +294,7 @@ test('5. a bad backup file shows an error and changes nothing', async () => {
 
   for (const [fname, content, re] of [
     ['broken.json', '{"app":"ResiboBZ","schemaVersion":1,', /not valid JSON/],
-    ['other.json', '{"app":"SomethingElse","schemaVersion":1}', /not a ResiboBZ backup/],
+    ['other.json', '{"app":"SomethingElse","schemaVersion":1}', /not a Toucan Bill backup/],
     ['future.json', JSON.stringify({ app: 'ResiboBZ', schemaVersion: 3 }), /different version/],
   ]) {
     await chooseFile(fname, content);

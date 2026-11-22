@@ -1,10 +1,10 @@
-// tools/server.js: tiny static dev server for ResiboBZ. Node built-ins only (no npm), works offline.
+// tools/server.js: tiny static dev server for Toucan Bill. Node built-ins only (no npm), works offline.
 //
 //   node tools/server.js [port]        (default 3000; start.bat runs this)
 //
 // Serves the project folder on http://localhost:<port> and opens it in the default browser.
 // Set RESIBOBZ_NO_OPEN=1 to skip opening the browser.
-// If ResiboBZ is already running on the port, it just opens the browser and exits (code 0).
+// If Toucan Bill is already running on the port, it just opens the browser and exits (code 0).
 // Any other failure prints the reason and exits with code 1, so start.bat can pause on it.
 'use strict';
 const http = require('node:http');
@@ -57,7 +57,7 @@ function openBrowser() {
   exec(cmd, (err) => { if (err) console.log(`Could not open the browser. Open ${APP_URL} yourself.`); });
 }
 
-/** Is ResiboBZ (this server) already answering on the port? */
+/** Is Toucan Bill (this server) already answering on the port? */
 function alreadyRunning() {
   return new Promise((resolve) => {
     const req = http.get(`http://127.0.0.1:${PORT}/`, { timeout: 2000 }, (res) => {
@@ -91,7 +91,7 @@ async function main() {
   } catch (err) {
     if (err.code === 'EADDRINUSE') {
       if (await alreadyRunning()) {
-        console.log(`ResiboBZ is already running at ${APP_URL}. Opening it in your browser.`);
+        console.log(`Toucan Bill is already running at ${APP_URL}. Opening it in your browser.`);
         openBrowser();
         setTimeout(() => process.exit(0), 500);
         return;
@@ -102,7 +102,7 @@ async function main() {
   }
   await listen('::1').catch(() => {}); // no IPv6 on this machine: fine, 127.0.0.1 works
 
-  console.log('ResiboBZ dev server');
+  console.log('Toucan Bill dev server');
   console.log(`Serving ${ROOT}`);
   console.log(`Open ${APP_URL}`);
   console.log('');
