@@ -1,3 +1,13 @@
+# Toucan Bill — rules for every task
+- A real client uses this app in production. Her data lives only on her phone.
+- Always work on a new branch. Never merge or push to main unless I say "merge".
+- Push the branch and give me the Netlify deploy preview link for testing.
+- IndexedDB / localStorage changes must be additive only: new optional fields, indexes or stores. Never rename, delete, clear or recreate existing databases, stores or keys.
+- Bump CACHE_VERSION whenever any cached file changes.
+- Run all unit and browser tests before every commit and report pass/fail counts.
+- Never add analytics, tracking, ads or third-party scripts. Vendor any library locally.
+- Show me the manual checks I need to do on my phone at the end of every task.
+
 # ResiboBZ
 
 A GST receipt/invoice maker for Belize small businesses.
