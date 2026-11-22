@@ -67,30 +67,35 @@ js/receipt.js       Receipt record builder, WhatsApp summary/link, file names (p
 js/quote.js         Quote record builder, computed status, default valid-until (pure, unit-tested)
 js/filter.js        History/Quotes search/date/status filters (statusOf option), count + total, backup reminder (pure, unit-tested)
 js/summary.js       Daily Summary maths: day bounds, totals, by payment method, by GST rate (pure, unit-tested)
+js/stats.js         Stats tab maths: getRange/previousRange/inRange, labels, money helpers (pure; tests/stats.cases.js)
+js/stats-ui.js      Stats tab pieces: empty state, remembered range picker, card
 js/backup.js        Backup file build/validate/summary/counters (pure, unit-tested) + collect()/restore() via db.js
 js/db.js            IndexedDB wrapper (the only file that touches IndexedDB)
 js/ui.js            DOM helpers: h(), field(), toast(), confirm(), ask() (confirm + optional text), download(), chipGroup() (equal-width radio button row)
 js/typeahead.js     Suggestion matching (pure, unit-tested) + combobox for picking saved products/customers
 js/autosave.js      Add a saved document's customer/items to Customers/Products (plan() pure, unit-tested)
 js/editor.js        Shared document editor (customer, lines, live totals, validation, auto-save) for New Receipt and quotes
-js/pdf.js           Letter/A4 receipt, quote and Daily Summary PDF (lazy-loads /lib on first use)
+js/pdf.js           Letter/A4 receipt, quote, Daily Summary and monthly GST summary PDF (lazy-loads /lib on first use)
 js/detail.js        Shared detail-screen parts: business card, Bill to, lines + totals, Share/Download PDF panel (also used by the Daily Summary)
 js/demo.js          Sample data for Settings > Developer > Load demo data (plan() is pure, unit-tested)
 js/update.js        Service worker registration + "Update available, tap to reload" prompt
 js/app.js           Router, nav, view rendering
-js/views/*.js       One file per tab: new, history, quotes, products, customers, settings; plus receipt (detail,
+js/views/*.js       One file per tab: new, history, quotes, stats, products, customers, settings; plus receipt (detail,
                     #/receipt/<id>), quote (detail, #/quote/<id>) and quote-edit (#/quote/new, #/quote/<id>/edit), summary (#/summary[/YYYY-MM-DD])
-lib/                Vendored third-party libs (jsPDF, autotable); versions in lib/README.md
+lib/                Vendored third-party libs (jsPDF, autotable, Chart.js); versions in lib/README.md
 icons/              App icons: icon.svg (source), 180 (apple-touch-icon)/192/512 PNGs, maskable 512 PNG (from icon-maskable.svg)
 tests/              node:test unit tests for the pure modules
 tests/browser/      *.e2e.js: headless-Chrome tests of the real app (no npm; drives Chrome over CDP)
+tests/stats.test.html  Browser runner for tests/stats.cases.js (Node runs the same cases via stats.test.js)
+tests/fixtures.js   Hand-worked Stats fixture: receipts, quotes, customers, products, totals in comments
+tests/seed.html     Dev-only seed tool: fake data into the separate resibobz-test database (tests/seed-data.js)
 netlify.toml        Netlify hosting: publish the repo root, no build; no-cache on /, index.html, sw.js
 start.bat           Windows double-click launcher for the dev server
 tools/server.js     Dev static server (Node built-ins, port 3000). Not loaded by the app, not cached by sw.js
 ```
 
 Keep files small and single-purpose. Add new files under `js/` instead of growing `app.js`.
-Script load order in `index.html` matters: money, receipt, filter, summary, quote, backup, db, ui, typeahead, autosave, editor, pdf, detail, demo, views, update, then app.
+Script load order in `index.html` matters: money, receipt, filter, summary, stats, quote, backup, db, ui, stats-ui, typeahead, autosave, editor, pdf, detail, demo, views, update, then app.
 
 ## Updates
 
@@ -110,8 +115,9 @@ controlling worker's `CACHE_VERSION`, asked via a `GET_VERSION` message) and "Ch
 
 ## Navigation
 
-Bottom nav with six tabs: **New, History, Quotes, Products, Customers, Settings**. At 320px each tab is ~53px,
-so labels/icons shrink under 400px wide (layout.e2e.js fails if any label is cut off). Hash routing:
+Bottom nav with seven tabs: **New, History, Quotes, Stats, Products, Customers, Settings**. At 320px each tab is ~46px
+wide by 64px tall (the user accepted this exception to the 48px rule, for nav width only), so labels/icons shrink under
+400px wide (layout.e2e.js fails if any label is cut off). `#view` gets `data-view="<tab>"`; Stats widens it to 1000px. Hash routing:
 `#/<tab>[/<param>]`, e.g. `#/receipt/12`, `#/products/new`. Non-tab routes set `nav` in `TABS` (app.js)
 to highlight a tab: `#/receipt/<id>` highlights History, `#/quote/...` highlights Quotes, `#/summary` highlights History. Old `#/history/<id>` links redirect to `#/receipt/<id>`.
 New Receipt saves to `#/receipt/<id>/saved` (shows "Saved. View in History" once, then drops `/saved`).
@@ -162,7 +168,7 @@ Keep chip labels to about 6 characters so five fit at 320px; longer ones (Quotes
 
 ## Daily Summary
 
-`#/summary[/YYYY-MM-DD]`, opened from the "Daily summary" button at the top of History (no tab: six already fill 320px).
+`#/summary[/YYYY-MM-DD]`, opened from the "Daily summary" button at the top of History (no tab).
 Date picker (defaults to today, updates the hash). Shows receipt count, subtotal (excl. GST), GST collected, total,
 GST per rate when a day mixes rates, and count + amount per payment method (cash, card, transfer always shown),
 then the day's receipts. A day with nothing counted shows "No receipts on this date".
@@ -217,6 +223,53 @@ then the day's receipts. A day with nothing counted shows "No receipts on this d
 - Quotes list (`#/quotes`) reuses `filter.apply` (with `statusOf: quote.status`) and two `ui.chipGroup` rows: dates and
   All / Open / Expired / Converted / Cancelled.
 
+## Stats (Phase 6)
+
+`#/stats`, built in steps 0-6, one at a time; the user says "next" between steps. Maths in `js/stats.js` (pure), pieces in
+`js/stats-ui.js`, view in `js/views/stats.js`. Sales figures reuse `summary.summarize`, so they are sums of stored receipt
+values and match the PDFs; quotes, voided and cancelled never count. Money shows as `$` (`stats.formatBZD` is
+`money.formatCents`). Ranges are `{ preset, from, to }`, `to` exclusive, weeks start Monday. The picker choice is kept in
+localStorage (`resibobz.stats.range`, wrapped in try/catch). With no receipts the tab is one empty state; below
+`stats.MIN_RECEIPTS` (5) counted receipts the GST card shows and Trends shows the empty state.
+- **At a glance** (Step 2, very top, from the first receipt, ignores the picker): Today / This week / This month tiles
+  from `stats.glance(records, now)`: total, count, average (`averageCents`, 0 when none) and `percentChange` against the
+  previous period **up to the same point** (`periodToDate`: yesterday to the same time, 7 days ago, same day last month
+  capped at its end). Previous 0 shows "New", both 0 "No sales yet"; green up, red down.
+- **Top products / slow movers** (Step 3, in the Trends grid): `stats.topProducts(records, range, { by, products })` groups
+  lines by `normalizeName` (trim, lowercase, collapse spaces), ranks by net sales (excl. GST) or quantity, ties by name;
+  shows the saved product's name, else the most-used spelling. `stats.slowMovers(records, products, now)`: saved products
+  with no sale in the last 30 days (fixed, not the picker), never sold first, then oldest last sale.
+- **Top customers** (Step 4, in the Trends grid): `stats.topCustomers(records, range, { customers })` groups receipts by
+  phone (`waNumber`, any format) then name (`normalizeName`); a name-only receipt joins the phone group with that name.
+  Top 10 by spend incl. GST, ties by name; walk-ins (no name, no phone) are a separate total, never ranked or in
+  repeat/one-time. Repeat = 2+ receipts ever (up to the range end). WhatsApp button `stats.waLink` (receipt.whatsappNumber:
+  7 digits get 501); falls back to the saved customer's phone by name.
+- **Charts** (Step 5, Trends): Chart.js 4.4.7 at `lib/chart.umd.min.js`, precached, loaded on first use by
+  `statsUi.ensureChart()`. `stats.salesSeries(records, range, now)`: one zero-filled point per day, weekly (Monday) when the
+  range is over 90 days; `stats.weekdayAverages`: weekday total ÷ how often that weekday falls in the range. Both stop at
+  today (`plotRange`), so future days are never shown as $0. Values stay in cents; only labels are formatted. Every redraw
+  and leaving the tab calls `statsUi.destroyCharts()`. Single series in the brand blue, no legend, "Show numbers" table.
+- **Quotes** (Step 6, Trends): `stats.quoteStats(quotes, range)` for quotes dated in the range: sent, converted, rate
+  (converted ÷ sent, `null` → "—"), open value (status Open only). `stats.followUps(quotes)`: every Open quote, oldest
+  first, any range, with a WhatsApp follow-up (`followUpText`); expired ones are a count with a link to Quotes. Uses the
+  existing link (`receiptId`/`receiptNumber`/`convertedAt` from `db.saveConvertedReceipt`, in backups since schema 2), so
+  there are no "unknown" legacy quotes and no new field.
+- **Speed:** with 2,000 receipts and a 4x slower CPU, Stats renders in about 250–450 ms (median), logged to the console with
+  `performance.now()` and kept on `window.statsTiming` (`ms`, `dbMs`, `chartsMs`). Stats code parses each date once
+  (`timeOf`, a Symbol on the record; a WeakMap made GC slow) and narrows to the range before `summary.summarize`
+  (`summarizeRange`); keep new calculations on that path. `tests/browser/release.e2e.js` checks it, plus a clean console,
+  768/1280px, and that nothing under `tests/` is linked or precached.
+- Desktop Trends layout is CSS columns (`columns: 2`, cards `break-inside: avoid`), so cards of any height pack.
+- **Monthly GST summary** (Step 1, top of the tab, own month `<select>`, default last month): `stats.gstSummary(records, 'YYYY-MM')`
+  sums stored receipt values, so each receipt keeps its own rate (`byRate` when mixed). CSV `stats.gstCsv`: UTF-8 BOM,
+  CRLF, plain amounts ("12.50"), totals row, formula-safe text. One-page PDF `pdf.gstSummaryBlob(s, { pageSize })`.
+Test cases live in `tests/stats.cases.js` and run in Node (`stats.test.js`) and the browser (`stats.test.html`).
+
+**Test database (dev only):** `tests/seed.html` writes fake data into `resibobz-test` with `db.replaceAll`. db.js opens
+`resibobz-test` only while localStorage `resibobz.useTestDb` is `1`, which the seed page's "Open the app on test data"
+sets. The app then shows a red TEST DATABASE bar with "Back to real data". `sw.js` never caches or serves anything for
+`tests/` (requests to or from those pages go to the network), and netlify.toml returns 404 for `/tests/*`.
+
 ## Before every commit
 
 1. `node --check` on every project JS file (everything except `lib/`).
@@ -242,6 +295,10 @@ then the day's receipts. A day with nothing counted shows "No receipts on this d
 - **Phase 5 (done):** Daily Summary (screen + PDF, pure summary maths), installable PWA (manifest id/start_url "./",
   iPhone meta + 180px touch icon, "Update available, tap to reload" prompt), `pwa.e2e.js` (installability,
   precache coverage, offline).
+- **Phase 6 (done):** Stats tab (see Stats above): range picker, at-a-glance tiles, monthly GST summary (CSV + one-page PDF),
+  top products, slow movers, top customers + WhatsApp, sales trend and busiest-days charts (Chart.js in lib/), quote
+  conversion + follow-ups. Seventh nav tab. Dev-only test page, fixture and seed tool (separate `resibobz-test` database).
+  No data fields added.
 - Later phases are defined as we go. Do only the phase asked for.
 
 ## Hosting

@@ -2,7 +2,7 @@
  * Service worker: cache-first offline shell.
  * When you add or rename a file the app loads, add it to ASSETS and bump CACHE_VERSION.
  */
-const CACHE_VERSION = 'resibobz-v21';
+const CACHE_VERSION = 'resibobz-v30';
 
 // Use './' for the shell, never 'index.html': some static servers redirect
 // /index.html, and a cached redirect breaks offline navigation.
@@ -14,10 +14,12 @@ const ASSETS = [
   'js/receipt.js',
   'js/filter.js',
   'js/summary.js',
+  'js/stats.js',
   'js/quote.js',
   'js/backup.js',
   'js/db.js',
   'js/ui.js',
+  'js/stats-ui.js',
   'js/typeahead.js',
   'js/autosave.js',
   'js/editor.js',
@@ -31,6 +33,7 @@ const ASSETS = [
   'js/views/quotes.js',
   'js/views/quote.js',
   'js/views/quote-edit.js',
+  'js/views/stats.js',
   'js/views/products.js',
   'js/views/customers.js',
   'js/views/settings.js',
@@ -43,6 +46,7 @@ const ASSETS = [
   'icons/icon-maskable-512.png',
   'lib/jspdf.umd.min.js',
   'lib/jspdf.plugin.autotable.min.js',
+  'lib/chart.umd.min.js',
 ];
 
 // Installs up to resibobz-v18 run an update.js that has no "tap to reload" prompt and never sends
@@ -76,9 +80,14 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Dev pages under tests/ (stats.test.html, seed.html) always load the files on disk, never this
+// cache, so they test the code being edited. Nothing under tests/ is ever precached.
+const TESTS_PREFIX = new URL('tests/', self.registration.scope).href;
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
+  if (req.url.startsWith(TESTS_PREFIX) || req.referrer.startsWith(TESTS_PREFIX)) return;
 
   event.respondWith(
     caches.match(req, { ignoreSearch: true }).then((cached) => {

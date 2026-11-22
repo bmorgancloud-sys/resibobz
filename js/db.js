@@ -7,8 +7,18 @@
 (function () {
   'use strict';
 
-  const DB_NAME = 'resibobz';
+  // Dev only: tests/seed.html sets this localStorage flag to point the app at a separate
+  // 'resibobz-test' database full of fake data. app.js then shows a red "Test database" bar with a
+  // way back. Nothing in the app sets it, so real users always get 'resibobz'.
+  const TEST_FLAG = 'resibobz.useTestDb';
+  const isTestDb = (() => { try { return localStorage.getItem(TEST_FLAG) === '1'; } catch { return false; } })();
+  const DB_NAME = isTestDb ? 'resibobz-test' : 'resibobz';
   const DB_VERSION = 2;
+
+  /** Leave the test database: the next page load opens the real one. */
+  function useRealDb() {
+    try { localStorage.removeItem(TEST_FLAG); } catch {}
+  }
 
   const STORES = ['settings', 'products', 'customers', 'receipts', 'quotes'];
 
@@ -371,7 +381,10 @@
   }
 
   window.db = {
+    DB_NAME,
     DB_VERSION,
+    isTestDb,
+    useRealDb,
     STORES,
     DEFAULT_SETTINGS,
     open,

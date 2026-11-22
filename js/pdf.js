@@ -1,6 +1,7 @@
 /*
  * pdf.js: Letter/A4 receipt and quote PDF using jsPDF + jspdf-autotable from /lib (lazy-loaded, offline).
- * Exposes global `pdf` with documentBlob(doc) -> Promise<Blob> (receiptBlob/quoteBlob are aliases) and PAGE_SIZES.
+ * Exposes global `pdf` with documentBlob(doc) -> Promise<Blob> (receiptBlob/quoteBlob are aliases), summaryBlob
+ * (Daily Summary), gstSummaryBlob (Stats: monthly GST summary) and PAGE_SIZES.
  * Quotes (doc.type === 'quote') are titled QUOTATION, show Valid until and Notes / terms, and no payment method.
  * Watermarks: VOID (voided receipt), CANCELLED (cancelled quote).
  */
@@ -436,6 +437,68 @@
   }
 
   /**
+   * One-page monthly GST summary (Stats tab). s = stats.gstSummary(...); b = current business settings.
+   * The figures for the GST return, the split by GST rate, and which receipts they come from.
+   * The per-receipt list is in the CSV export, which keeps this to a single page.
+   */
+  function buildGstSummary(s, b, logo, pageSize, now) {
+    const fmt = money.formatCents;
+    b = b || {};
+    const { doc, pageW, pageH } = newDoc(pageSize, { title: 'GST summary ' + s.label, subject: b.name || 'GST summary' });
+    const R = pageW - M;
+    const lastDay = new Date(s.range.to.getFullYear(), s.range.to.getMonth(), s.range.to.getDate() - 1);
+
+    let y = drawHeader(doc, {
+      b, logo, pageW,
+      title: 'GST SUMMARY',
+      meta: [['Period', s.label], ['From', receipt.formatDay(filter.dayString(s.range.from))],
+        ['To', receipt.formatDay(filter.dayString(lastDay))], ['Printed', receipt.formatDateTime(now.toISOString())]],
+    }) + 6;
+    doc.setDrawColor(...RULE);
+    doc.setLineWidth(0.3);
+    doc.line(M, y, R, y);
+    y += 6;
+
+    y = sectionTitle(doc, 'Sales and GST', y, pageH);
+    y = gridTable(doc, y, null, [
+      ['Receipts', String(s.count)],
+      ['Gross sales (incl. GST)', fmt(s.totalCents)],
+      ['Taxable sales (excl. GST)', fmt(s.taxableCents)],
+      ['Zero-rated / exempt sales', fmt(s.zeroRatedCents)],
+    ], { foot: ['GST collected', fmt(s.gstCents)], width: 120, columnStyles: { 1: { cellWidth: 40 } } }) + 6;
+
+    const rateBody = s.byRate.map((x) => ['Standard rated (' + money.formatRate(x.gstRateBp) + '%)', fmt(x.taxableCents), fmt(x.gstCents)]);
+    rateBody.push(['Zero-rated / exempt', fmt(s.zeroRatedCents), fmt(0)]);
+    y = sectionTitle(doc, 'GST by rate', y, pageH);
+    y = gridTable(doc, y, ['', 'Net sales', 'GST'], rateBody, {
+      foot: ['Total', fmt(s.subtotalCents), fmt(s.gstCents)],
+      width: 120, columnStyles: { 1: { cellWidth: 32 }, 2: { cellWidth: 28 } },
+    }) + 8;
+
+    setFont(doc, 9, 'normal', MUTED);
+    const notes = [];
+    if (s.count) {
+      notes.push('Totals of ' + s.count + (s.count === 1 ? ' receipt' : ' receipts') + ', ' + s.rows[0].number
+        + (s.count > 1 ? ' to ' + s.rows[s.count - 1].number : '') + ', each at the GST rate it was issued with.');
+    } else {
+      notes.push('No receipts in ' + s.label + '.');
+    }
+    if (s.excluded.voided) notes.push(s.excluded.voided + (s.excluded.voided === 1 ? ' voided receipt' : ' voided receipts') + ' not counted.');
+    notes.push('Quotes are never counted. The per-receipt list is in the CSV export.');
+    textBlock(doc, notes.join(' '), M, y, { maxWidth: R - M });
+
+    setFont(doc, 8, 'normal', MUTED);
+    doc.text('GST summary ' + s.label, M, pageH - 8);
+    return doc;
+  }
+
+  /** GST summary PDF as a Blob, with the current business details, logo and page size (or `pageSize` if given). */
+  async function gstSummaryBlob(s, { now = new Date(), pageSize } = {}) {
+    const [, settings] = await Promise.all([ensureLibs(), db.getSettings()]);
+    return buildGstSummary(s, settings.business, settings.logo, pageSize || settings.pageSize, now).output('blob');
+  }
+
+  /**
    * Build the PDF of a receipt or a quote (r.type === 'quote': titled QUOTATION) and return it as a Blob.
    * Uses the current logo and page size from Settings (neither is snapshotted on the document).
    */
@@ -444,5 +507,5 @@
     return build(r, logo, pageSize).output('blob');
   }
 
-  window.pdf = { ensureLibs, documentBlob, summaryBlob, buildSummary, receiptBlob: documentBlob, quoteBlob: documentBlob, PAGE_SIZES };
+  window.pdf = { ensureLibs, documentBlob, summaryBlob, buildSummary, gstSummaryBlob, buildGstSummary, receiptBlob: documentBlob, quoteBlob: documentBlob, PAGE_SIZES };
 })();

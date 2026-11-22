@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Seed test data · ResiboBZ (dev only)</title>
+  <style>
+    body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 16px; background: #f4f6f9; color: #1a1f29; max-width: 640px; }
+    h1 { font-size: 1.25rem; margin: 0 0 4px; }
+    .warn { background: #fdecea; color: #b3261e; font-weight: 600; padding: 12px 16px; border-radius: 10px; }
+    .card { background: #fff; border: 1px solid #dde2ea; border-radius: 12px; padding: 16px; margin: 12px 0; }
+    .card h2 { font-size: 1rem; margin: 0 0 8px; }
+    button { min-height: 48px; padding: 0 16px; margin: 4px 8px 4px 0; border: 0; border-radius: 10px; font: inherit;
+      font-weight: 600; background: #0b5cab; color: #fff; cursor: pointer; }
+    button.secondary { background: #fff; color: #1a1f29; border: 1px solid #dde2ea; }
+    button:disabled { opacity: 0.5; }
+    #status { white-space: pre-wrap; font-variant-numeric: tabular-nums; }
+    p { margin: 0 0 8px; }
+  </style>
+</head>
+<body>
+  <h1>Seed test data</h1>
+  <p class="warn">Dev only. Writes fake data into a separate <code>resibobz-test</code> database.
+    Your real data (<code>resibobz</code>) is never touched.</p>
+
+  <section class="card">
+    <h2>1. Fill the test database</h2>
+    <p>Replaces everything in <code>resibobz-test</code>. Dates run up to today.</p>
+    <button type="button" data-seed="300">Seed 300 receipts, 40 quotes (120 days)</button>
+    <button type="button" data-seed="2000">Seed 2,000 receipts (performance)</button>
+    <button type="button" class="secondary" id="clear">Empty the test database</button>
+  </section>
+
+  <section class="card">
+    <h2>2. Use it in the app</h2>
+    <p>The app shows a red <b>TEST DATABASE</b> bar while it uses the test data. Tap
+      <b>Back to real data</b> there (or here) to return.</p>
+    <button type="button" id="open">Open the app on test data</button>
+    <button type="button" class="secondary" id="real">Back to real data</button>
+  </section>
+
+  <section class="card">
+    <h2>Status</h2>
+    <div id="status">Loading…</div>
+  </section>
+
+  <script src="../js/money.js"></script>
+  <script src="../js/receipt.js"></script>
+  <script src="../js/filter.js"></script>
+  <script src="../js/quote.js"></script>
+  <script src="seed-data.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const FLAG = 'resibobz.useTestDb';
+      const status = document.getElementById('status');
+      const say = (text) => { status.textContent = text; };
+      const flagOn = () => { try { return localStorage.getItem(FLAG) === '1'; } catch { return false; } };
+
+      // db.js picks its database once, when it loads. Turn the flag on just for that moment, then put
+      // it back, so visiting this page never switches the app over by itself.
+      const was = flagOn();
+      try { localStorage.setItem(FLAG, '1'); } catch {
+        say('localStorage is blocked, so the test database cannot be selected. Nothing was written.');
+        return;
+      }
+      const s = document.createElement('script');
+      s.src = '../js/db.js';
+      s.onload = start;
+      s.onerror = () => say('Could not load ../js/db.js. Open this page from the dev server (start.bat).');
+      document.body.append(s);
+
+      async function describe() {
+        const [receipts, quotes, products, customers] = await Promise.all(
+          ['receipts', 'quotes', 'products', 'customers'].map((n) => db.count(n)));
+        return 'Database: ' + db.DB_NAME + '\n' + receipts + ' receipts, ' + quotes + ' quotes, '
+          + products + ' products, ' + customers + ' customers\n'
+          + 'App is using: ' + (flagOn() ? 'TEST data' : 'real data');
+      }
+
+      async function start() {
+        try { if (!was) localStorage.removeItem(FLAG); } catch {}
+        if (db.DB_NAME !== 'resibobz-test') { say('Refusing to run: db.js opened "' + db.DB_NAME + '".'); return; }
+        const buttons = [...document.querySelectorAll('button')];
+        const busy = (on) => buttons.forEach((b) => { b.disabled = on; });
+
+        document.querySelectorAll('[data-seed]').forEach((b) => b.addEventListener('click', async () => {
+          const n = Number(b.dataset.seed);
+          busy(true);
+          say('Seeding ' + n + ' receipts…');
+          try {
+            const t0 = performance.now();
+            const data = seedData.generate({ receipts: n, days: 120, quotes: 40, seed: n });
+            await db.replaceAll(data);
+            say('Seeded in ' + Math.round(performance.now() - t0) + ' ms.\n' + await describe());
+          } catch (err) {
+            console.error(err);
+            say('Seeding failed: ' + (err && err.message ? err.message : err));
+          }
+          busy(false);
+        }));
+
+        document.getElementById('clear').addEventListener('click', async () => {
+          busy(true);
+          await db.replaceAll({ settings: {}, counters: {}, products: [], customers: [], receipts: [], quotes: [] });
+          say('Emptied.\n' + await describe());
+          busy(false);
+        });
+
+        document.getElementById('open').addEventListener('click', () => {
+          try { localStorage.setItem(FLAG, '1'); } catch {}
+          location.href = '../#/stats';
+        });
+
+        document.getElementById('real').addEventListener('click', async () => {
+          try { localStorage.removeItem(FLAG); } catch {}
+          say(await describe());
+        });
+
+        say(await describe());
+      }
+    })();
+  </script>
+</body>
+</html>

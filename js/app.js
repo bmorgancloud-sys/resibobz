@@ -18,6 +18,7 @@
     quotes:    { title: 'Quotes' },
     products:  { title: 'Products' },
     customers: { title: 'Customers' },
+    stats:     { title: 'Stats' },
     settings:  { title: 'Settings' },
     receipt:   { title: 'Receipt', nav: 'history' },
     quote:     { title: 'Quote', nav: 'quotes' },   // #/quote/<id>, #/quote/new, #/quote/<id>/edit
@@ -47,6 +48,7 @@
     const seq = ++renderSeq;
     const { tab, params } = parseHash();
 
+    viewEl.dataset.view = tab; // lets a view widen the page (Stats uses up to 1000px on desktop)
     const navTab = TABS[tab].nav || tab;
     navLinks.forEach((a) => {
       const active = a.dataset.route === navTab;
@@ -83,7 +85,18 @@
     }
   }
 
+  /** Dev only (tests/seed.html): make it impossible to mistake fake test data for real data. */
+  function showTestDbBar() {
+    const back = ui.h('button', { type: 'button', class: 'btn btn-small btn-secondary', onclick: () => {
+      db.useRealDb();
+      location.reload();
+    } }, 'Back to real data');
+    document.body.insertBefore(ui.h('div', { class: 'banner test-db-bar', role: 'status' },
+      ui.h('span', null, 'TEST DATABASE: fake data, not your real receipts.'), back), viewEl);
+  }
+
   async function start() {
+    if (db.isTestDb) showTestDbBar();
     try {
       await db.ensureDefaults();
     } catch (err) {

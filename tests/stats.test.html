@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stats tests · ResiboBZ</title>
+  <style>
+    body { font: 15px/1.5 system-ui, sans-serif; margin: 0; padding: 16px; background: #f4f6f9; color: #1a1f29; }
+    h1 { font-size: 1.25rem; margin: 0 0 8px; }
+    #summary { font-weight: 700; padding: 12px 16px; border-radius: 10px; margin-bottom: 12px; }
+    #summary.ok { background: #e3f4ea; color: #0f6b3a; }
+    #summary.bad { background: #fdecea; color: #b3261e; }
+    ol { list-style: none; margin: 0; padding: 0; }
+    li { background: #fff; border: 1px solid #dde2ea; border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; overflow-wrap: anywhere; }
+    .tag { display: inline-block; min-width: 3.2em; font-weight: 700; }
+    .pass .tag { color: #0f6b3a; }
+    .fail { border-color: #f3c4c0; }
+    .fail .tag { color: #b3261e; }
+    pre { margin: 6px 0 0; white-space: pre-wrap; font-size: 13px; color: #b3261e; }
+    p { color: #5b6575; }
+  </style>
+</head>
+<body>
+  <h1>ResiboBZ · Stats tests</h1>
+  <p>Runs tests/stats.cases.js against js/stats.js and the hand-worked fixture (tests/fixtures.js).
+    The same cases run in Node with <code>node --test tests/</code>.</p>
+  <div id="summary">Running…</div>
+  <ol id="results"></ol>
+
+  <script src="../js/money.js"></script>
+  <script src="../js/receipt.js"></script>
+  <script src="../js/filter.js"></script>
+  <script src="../js/summary.js"></script>
+  <script src="../js/quote.js"></script>
+  <script src="../js/backup.js"></script>
+  <script src="../js/stats.js"></script>
+  <script src="fixtures.js"></script>
+  <script src="stats.cases.js"></script>
+  <script>
+    // Tiny runner: test(name, fn) plus the three asserts the cases use.
+    (function () {
+      'use strict';
+      const tests = [];
+
+      function fail(message, actual, expected) {
+        const err = new Error(message || 'Assertion failed');
+        if (arguments.length > 1) err.detail = 'actual:   ' + JSON.stringify(actual) + '\nexpected: ' + JSON.stringify(expected);
+        throw err;
+      }
+      function same(a, b) {
+        if (Object.is(a, b)) return true;
+        if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime();
+        if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+        if (Array.isArray(a) !== Array.isArray(b)) return false;
+        const ka = Object.keys(a), kb = Object.keys(b);
+        return ka.length === kb.length && ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && same(a[k], b[k]));
+      }
+      const assert = {
+        equal: (actual, expected, msg) => { if (!Object.is(actual, expected)) fail(msg, actual, expected); },
+        deepEqual: (actual, expected, msg) => { if (!same(actual, expected)) fail(msg, actual, expected); },
+        ok: (value, msg) => { if (!value) fail(msg || 'expected a truthy value'); },
+      };
+
+      window.statsCases({
+        test: (name, fn) => tests.push({ name, fn }),
+        assert, stats: window.stats, summary: window.summary, fixtures: window.fixtures, backup: window.backup,
+      });
+
+      const list = document.getElementById('results');
+      let passed = 0;
+      for (const t of tests) {
+        const li = document.createElement('li');
+        const tag = document.createElement('span');
+        tag.className = 'tag';
+        li.append(tag, document.createTextNode(' ' + t.name));
+        try {
+          t.fn();
+          passed++;
+          li.className = 'pass';
+          tag.textContent = 'PASS';
+        } catch (err) {
+          li.className = 'fail';
+          tag.textContent = 'FAIL';
+          const pre = document.createElement('pre');
+          pre.textContent = (err && err.message) + (err && err.detail ? '\n' + err.detail : '');
+          li.append(pre);
+          console.error(t.name, err);
+        }
+        list.append(li);
+      }
+      const failed = tests.length - passed;
+      const summary = document.getElementById('summary');
+      summary.className = failed ? 'bad' : 'ok';
+      summary.textContent = passed + ' passed, ' + failed + ' failed (' + tests.length + ' tests)';
+      document.title = (failed ? 'FAIL ' : 'PASS ') + passed + '/' + tests.length + ' · Stats tests';
+    })();
+  </script>
+</body>
+</html>

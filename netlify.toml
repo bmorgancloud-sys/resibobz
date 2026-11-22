@@ -47,3 +47,10 @@
   for = "/icons/*"
   [headers.values]
     Cache-Control = "public, max-age=604800"
+
+# Dev-only pages (tests/stats.test.html, tests/seed.html) are never served in production.
+[[redirects]]
+  from = "/tests/*"
+  to = "/404"
+  status = 404
+  force = true

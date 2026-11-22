@@ -9,7 +9,7 @@
 //
 // Seeds deliberately awkward data: long unbroken names, emails, descriptions, a long receipt
 // prefix and huge amounts. Covers the Quotes list, quote editor and quote detail too, and checks
-// that all six bottom-nav labels show in full.
+// that all seven bottom-nav labels show in full. Covers the Stats tab (with the Custom range open).
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -99,6 +99,10 @@ test.before(async () => {
       lines: [{ description: 'Pizza', qtyMilli: 1000, unitCents: 500, zeroRated: false }] }, s, new Date()));
     await db.saveNewDocument('receipt', receipt.buildReceipt({ customer: { name: 'Kim', phone: '' }, paymentMethod: 'cash',
       lines: [{ description: 'Pizza', qtyMilli: 1000, unitCents: 500, zeroRated: false }] }, s, new Date()));
+    for (let i = 0; i < 5; i++) {  // enough receipts for the Stats tab to show its sections
+      await db.saveNewDocument('receipt', receipt.buildReceipt({ customer: { name: '${LONG}${LONG}', phone: '' }, paymentMethod: 'card',
+        lines: [{ description: '${LONG}', qtyMilli: 99000, unitCents: 9876543210, zeroRated: false }] }, s, new Date()));
+    }
     return { receipt: r.id, product: pid, customer: cid, quote: q.id };
   })()`);
 });
@@ -126,18 +130,21 @@ for (const width of WIDTHS) {
       ['#/quote/new', 'Quote editor (new)'],
       ['#/summary/' + require('../../js/summary.js').dayOf(new Date()), 'Daily summary (demo data)'],
       ['#/summary/2020-01-01', 'Daily summary (empty)'],
+      ['#/stats', 'Stats (custom range)'],
     ];
+    // Stats with the Custom range open, so the From/To row is measured too.
+    await evaluate(`localStorage.setItem('resibobz.stats.range', JSON.stringify({ preset: 'custom', custom: { from: '2020-01-01', to: '2030-12-31' } })); true`);
     for (const [hash, what] of routes) {
       await visit(hash);
       await assertFits(width, what);
     }
 
-    // Bottom nav: six tabs, each label shown in full (not cut off with an ellipsis), 48px+ tall.
+    // Bottom nav: seven tabs, each label shown in full (not cut off with an ellipsis), 48px+ tall.
     const nav = await evaluate(`[...document.querySelectorAll('.bottom-nav a')].map((a) => {
       const s = a.querySelector('span'); const r = a.getBoundingClientRect();
       return { label: s.textContent, cut: s.scrollWidth > s.clientWidth + 0.5, right: r.right, height: r.height };
     })`);
-    assert.deepEqual(nav.map((n) => n.label), ['New', 'History', 'Quotes', 'Products', 'Customers', 'Settings']);
+    assert.deepEqual(nav.map((n) => n.label), ['New', 'History', 'Quotes', 'Stats', 'Products', 'Customers', 'Settings']);
     for (const n of nav) {
       assert.ok(!n.cut, `nav label "${n.label}" is cut off at ${width}px`);
       assert.ok(n.right <= width + 0.5 && n.height >= 48, `nav "${n.label}" fits and is 48px+ tall`);
