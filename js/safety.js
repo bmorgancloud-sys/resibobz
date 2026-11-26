@@ -92,7 +92,8 @@
   /** Collect and download a full backup; records lastBackupAt only after the file was handed over. */
   async function exportBackup(now = new Date()) {
     const data = await root.backup.collect(now);
-    root.ui.download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), root.backup.fileName(now));
+    root.ui.download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
+      root.backup.fileName(now, { demo: root.db.isDemoDb }));
     await root.db.setSetting('lastBackupAt', now.toISOString());
     return now.toISOString();
   }

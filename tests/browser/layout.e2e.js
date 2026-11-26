@@ -77,8 +77,10 @@ test.before(async () => {
   page = await harness.open('#/products');
   ({ evaluate } = page);
   ids = await evaluate(`(async () => {
-    await demo.load();
-    await db.setSettings({ receiptPrefix: 'INVOICE-BELMOPAN-BRANCH-' });
+    // The demo's business, products and customers as a baseline (its full history is checked in demo.e2e.js).
+    const d = demo.build();
+    await db.setSettings({ business: d.settings.business, receiptPrefix: 'INVOICE-BELMOPAN-BRANCH-' });
+    await db.putMany({ products: d.products.map(({ id, ...p }) => p), customers: d.customers.map(({ id, ...c }) => c) });
     const pid = await db.put('products', { name: 'Extra long product ${LONG}${LONG}', unit: 'bag${LONG}', priceCents: 123456789012, zeroRated: true });
     const cid = await db.put('customers', { name: 'Hardware${LONG}${LONG}Limited', phone: '+501 622-9887-1234-5678', email: 'accounts.receivable.department@belmopanhardware${LONG}.example.com', tin: '000123456789000123456789', address: '${LONG}${LONG} Street' });
     const s = await db.getSettings();

@@ -15,7 +15,7 @@ A GST receipt/invoice maker for Belize small businesses. Tagline: "Our national 
 ## Brand and theme
 
 - Renamed from ResiboBZ to Toucan Bill. **Stored names kept the old name on purpose** (never rename them): IndexedDB
-  `resibobz` / `resibobz-test`, localStorage `resibobz.*`, the backup file marker `app: "ResiboBZ"` (import also
+  `resibobz` / `resibobz-test` / `resibobz-demo`, localStorage `resibobz.*`, the backup file marker `app: "ResiboBZ"` (import also
   accepts `"Toucan Bill"`), and the manifest `id` `"./"`. `tests/browser/rebrand.e2e.js` builds a database with the
   pre-rebrand production app (commit 2c6b92f, read from git) and checks it survives the update untouched.
 - Blue theme (tokens on `:root` in app.css; the yellow "Sunny" theme was removed): header `--header-bg` #0D5DAA
@@ -53,7 +53,9 @@ A GST receipt/invoice maker for Belize small businesses. Tagline: "Our national 
 
 ## Storage
 
-IndexedDB, accessed only through `js/db.js`. Object stores:
+IndexedDB, accessed only through `js/db.js`. The real data is the `resibobz` database; `resibobz-demo` (see Demo data)
+and the dev-only `resibobz-test` have the same schema and are opened instead only while their localStorage flag is set.
+Object stores:
 
 | Store       | Key                    | Notes                                    |
 |-------------|------------------------|------------------------------------------|
@@ -103,7 +105,7 @@ js/autosave.js      Add a saved document's customer/items to Customers/Products 
 js/editor.js        Shared document editor (customer, lines, live totals, validation, auto-save) for New Receipt and quotes
 js/pdf.js           Letter/A4 receipt, quote, Daily Summary and monthly GST summary PDF (lazy-loads /lib on first use)
 js/detail.js        Shared detail-screen parts: business card, Bill to, lines + totals, Share/Download PDF panel (also used by the Daily Summary)
-js/demo.js          Sample data for Settings > Developer > Load demo data (plan() is pure, unit-tested)
+js/demo.js          Demo data (a separate test shop) for Settings > Developer > Load demo data (build() is pure, unit-tested)
 js/safety.js        Persistent storage, backup banner/export, "Something went wrong" bar, nearly-full warning, notSaved() (pure helpers unit-tested)
 js/update.js        Service worker registration + "Update available, tap to reload" prompt
 js/app.js           Router, nav, view rendering
@@ -235,6 +237,7 @@ then the day's receipts. A day with nothing counted shows "No receipts on this d
 - Settings > Backup. Export downloads `toucanbill-backup-YYYY-MM-DD.json`:
   `{ app: "ResiboBZ", schemaVersion: 1, exportedAt, settings (incl. logo data URL), counters: {receipt, quote},
   products, customers, receipts, quotes }`. Records keep their ids. `lastBackupAt` is per device, not exported.
+  In the demo the file is `toucanbill-demo-backup-YYYY-MM-DD.json` and the card says it holds test data only.
 - Import: `backup.parse` validates everything first, then the user confirms "Replace all data".
   `db.replaceAll` clears and writes all stores in **one transaction**, so a bad file or an error part-way
   leaves the old data untouched. Counters become max(file counter, highest imported number).
@@ -320,6 +323,29 @@ Test cases live in `tests/stats.cases.js` and run in Node (`stats.test.js`) and 
 `resibobz-test` only while localStorage `resibobz.useTestDb` is `1`, which the seed page's "Open the app on test data"
 sets. The app then shows a red TEST DATABASE bar with "Back to real data". `sw.js` never caches or serves anything for
 `tests/` (requests to or from those pages go to the network), and netlify.toml returns 404 for `/tests/*`.
+
+## Demo data
+
+Settings > Developer > **Load demo data** opens the demo: a separate test shop in its own IndexedDB database
+`resibobz-demo`, so it **never touches the real data** (receipts can't be deleted, so fake ones must never land among
+real ones). Added after a testing client saw the old real-sounding sample names and thought another user's data had loaded.
+- `demo.build({ now, seed })` (js/demo.js, pure, deterministic) returns the `db.replaceAll` shape: business "Test Store",
+  12 products "Test Product A-L" (K last sold 31+ days ago and L never: the Stats slow movers), 15 customers "Test
+  Customer A-N" + "Test Company Ltd" (J-N buy once: one-time customers), receipts every day from the **1st of last month**
+  to now (last month complete for the GST summary and "This month"), busiest Fri/Sat, ~45% walk-ins, a few voided, and a
+  quote about every 3 days (converted with linked receipts, cancelled, expired, newest 3 open).
+- Every name is plainly fake and every phone is `+501 000-00xx`: no Belize number starts with 0, so the WhatsApp buttons
+  open an invalid number, never a real person. (A bare `000-0001` reads as a 00 prefix and gets no button at all.)
+- `db.startDemo(data)` writes only to `resibobz-demo` (replacing any earlier demo) and sets localStorage
+  `resibobz.useDemoDb` = `1`; the page reloads on `#/stats`. db.js then opens `resibobz-demo` instead of `resibobz` (the
+  test flag wins if both are set). app.js shows a pale yellow "DEMO" bar with **Back to my data** (`db.useRealDb()`,
+  reload on the current tab, never a record id). In the demo the Developer card offers Back to my data and Reload demo data.
+- The Stats range choice (`resibobz.stats.range`) is per device, so it is shared between the demo and the real data.
+- A backup made in the demo is named `toucanbill-demo-backup-…` (`backup.fileName(now, { demo })`) and the Backup card
+  says it holds test data only, so nobody mistakes it for a backup of their own data.
+- Tests: `tests/demo.test.js` (names, history, every Stats card, ~80 dates through the year, backup validation) and
+  `tests/browser/demo.e2e.js` (starts on the live version with the old sample data, updates, checks every stored row is
+  unchanged, opens the demo, checks screens and 320/360/390px, saves in the demo, returns to identical real data).
 
 ## Before every commit
 

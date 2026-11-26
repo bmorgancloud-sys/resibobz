@@ -85,18 +85,31 @@
     }
   }
 
+  /** Leave the test or demo data. Reloads on the tab, not on a record: a test record's id means nothing in the real data. */
+  function backToRealData() {
+    const { tab } = parseHash();
+    db.useRealDb();
+    history.replaceState(null, '', '#/' + (TABS[tab].nav || tab));
+    location.reload();
+  }
+
   /** Dev only (tests/seed.html): make it impossible to mistake fake test data for real data. */
   function showTestDbBar() {
-    const back = ui.h('button', { type: 'button', class: 'btn btn-small btn-secondary', onclick: () => {
-      db.useRealDb();
-      location.reload();
-    } }, 'Back to real data');
+    const back = ui.h('button', { type: 'button', class: 'btn btn-small btn-secondary', onclick: backToRealData }, 'Back to real data');
     document.body.insertBefore(ui.h('div', { class: 'banner test-db-bar', role: 'status' },
       ui.h('span', null, 'TEST DATABASE: fake data, not your real receipts.'), back), viewEl);
   }
 
+  /** Settings > Developer > Load demo data: the app is on the separate demo database (db.js, js/demo.js). */
+  function showDemoBar() {
+    const back = ui.h('button', { type: 'button', class: 'btn btn-small btn-secondary', onclick: backToRealData }, 'Back to my data');
+    document.body.insertBefore(ui.h('div', { class: 'demo-bar', role: 'status' },
+      ui.h('span', null, 'DEMO: test data only. Your own data is safe.'), back), viewEl);
+  }
+
   async function start() {
     if (db.isTestDb) showTestDbBar();
+    else if (db.isDemoDb) showDemoBar();
     safety.init(); // error handler, persistent storage, nearly-full warning; never throws
     try {
       await db.ensureDefaults();

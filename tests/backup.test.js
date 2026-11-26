@@ -37,6 +37,7 @@ test('build: header, settings without counters or device keys, counters section'
 
 test('fileName uses the local date', () => {
   assert.equal(backup.fileName(NOW), 'toucanbill-backup-2026-11-20.json');
+  assert.equal(backup.fileName(NOW, { demo: true }), 'toucanbill-demo-backup-2026-11-20.json', 'a demo backup says so');
 });
 
 test('rebrand: the file marker stays "ResiboBZ" (data format unchanged); "Toucan Bill" files import too', () => {

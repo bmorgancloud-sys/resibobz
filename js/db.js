@@ -9,15 +9,23 @@
 
   // Dev only: tests/seed.html sets this localStorage flag to point the app at a separate
   // 'resibobz-test' database full of fake data. app.js then shows a red "Test database" bar with a
-  // way back. Nothing in the app sets it, so real users always get 'resibobz'.
+  // way back. Nothing in the app sets it.
   const TEST_FLAG = 'resibobz.useTestDb';
-  const isTestDb = (() => { try { return localStorage.getItem(TEST_FLAG) === '1'; } catch { return false; } })();
-  const DB_NAME = isTestDb ? 'resibobz-test' : 'resibobz';
+  // Settings > Developer > "Load demo data" fills a separate 'resibobz-demo' database with test data
+  // (startDemo, js/demo.js) and sets this flag; app.js then shows a "Demo" bar with "Back to my data".
+  // While either flag is set the real 'resibobz' database is not opened at all.
+  const DEMO_FLAG = 'resibobz.useDemoDb';
+  const DEMO_DB_NAME = 'resibobz-demo';
+  const flagOn = (key) => { try { return localStorage.getItem(key) === '1'; } catch { return false; } };
+  const isTestDb = flagOn(TEST_FLAG);
+  const isDemoDb = !isTestDb && flagOn(DEMO_FLAG);
+  const DB_NAME = isTestDb ? 'resibobz-test' : isDemoDb ? DEMO_DB_NAME : 'resibobz';
   const DB_VERSION = 2;
 
-  /** Leave the test database: the next page load opens the real one. */
+  /** Leave the test or demo database: the next page load opens the real one. */
   function useRealDb() {
     try { localStorage.removeItem(TEST_FLAG); } catch {}
+    try { localStorage.removeItem(DEMO_FLAG); } catch {}
   }
 
   const STORES = ['settings', 'products', 'customers', 'receipts', 'quotes'];
@@ -71,20 +79,26 @@
     }
   }
 
-  function open() {
-    if (dbPromise) return dbPromise;
-    dbPromise = new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
+  /** Open (creating or upgrading as needed) the database called `name`. */
+  function openNamed(name, onVersionChange) {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(name, DB_VERSION);
       req.onupgradeneeded = (e) => upgrade(req.result, e.oldVersion, req.transaction);
       req.onsuccess = () => {
         const idb = req.result;
         // Another tab upgraded the schema: close so it can proceed.
-        idb.onversionchange = () => { idb.close(); dbPromise = null; };
+        idb.onversionchange = () => { idb.close(); onVersionChange(); };
         resolve(idb);
       };
       req.onerror = () => reject(req.error);
       req.onblocked = () => reject(new Error('Database upgrade blocked: close other Toucan Bill tabs.'));
-    }).catch((err) => { dbPromise = null; throw err; });
+    });
+  }
+
+  function open() {
+    if (dbPromise) return dbPromise;
+    dbPromise = openNamed(DB_NAME, () => { dbPromise = null; })
+      .catch((err) => { dbPromise = null; throw err; });
     return dbPromise;
   }
 
@@ -357,7 +371,11 @@
    * Unknown setting keys are ignored; missing ones get their defaults.
    */
   async function replaceAll(data) {
-    const idb = await open();
+    await writeAll(await open(), data);
+  }
+
+  /** replaceAll on the open connection `idb`. */
+  async function writeAll(idb, data) {
     const tx = idb.transaction(STORES, 'readwrite');
     const done = txDone(tx);
     try {
@@ -383,11 +401,33 @@
     await done;
   }
 
+  // ---- Demo (Settings > Developer > Load demo data) ----
+
+  /**
+   * Fill the separate demo database with `data` (the shape replaceAll takes, from demo.build()), replacing
+   * any earlier demo data in it, then switch the app to it from the next page load. Only ever writes to
+   * 'resibobz-demo', never to the real database. Throws without switching if the write fails or
+   * localStorage is blocked.
+   */
+  async function startDemo(data) {
+    const idb = await openNamed(DEMO_DB_NAME, () => {});
+    try {
+      await writeAll(idb, data);
+    } finally {
+      idb.close();
+    }
+    localStorage.setItem(DEMO_FLAG, '1');
+    try { localStorage.removeItem(TEST_FLAG); } catch {}   // the test database would win over the demo
+  }
+
   window.db = {
     DB_NAME,
     DB_VERSION,
+    DEMO_DB_NAME,
     isTestDb,
+    isDemoDb,
     useRealDb,
+    startDemo,
     STORES,
     DEFAULT_SETTINGS,
     open,

@@ -1,7 +1,7 @@
 /*
  * views/settings.js: business details, logo, GST rate, numbering, PDF page size, footer note,
  * Backup (export/import, js/backup.js), App (version + "Check for updates", js/update.js) and a
- * Developer card to load demo data (js/demo.js).
+ * Developer card that opens the demo, a separate test shop (js/demo.js), and leaves it again.
  * #/settings/backup scrolls to the Backup card.
  */
 (function () {
@@ -119,7 +119,7 @@
         const now = new Date();
         const current = await backup.collect(now);
         ui.download(new Blob([JSON.stringify(current, null, 2)], { type: 'application/json' }),
-          backup.fileName(now).replace(/\.json$/, '-before-import.json'));
+          backup.fileName(now, { demo: db.isDemoDb }).replace(/\.json$/, '-before-import.json'));
       } catch (e) {
         console.error(e);
         showError('Could not save a copy of your current data first, so nothing was imported. Your data was not changed.');
@@ -145,7 +145,9 @@
 
     return h('section', { class: 'card', id: 'backup' },
       h('h2', null, 'Backup'),
-      h('p', { class: 'backup-privacy' }, 'Your receipts are stored only on this device. Back up weekly.'),
+      h('p', { class: 'backup-privacy' }, db.isDemoDb
+        ? 'This is the demo: a backup here holds test data only, not your own data. Tap "Back to my data" to back that up.'
+        : 'Your receipts are stored only on this device. Back up weekly.'),
       h('p', { class: 'field-hint backup-intro' },
         'Keep the backup file somewhere safe, e.g. Google Drive or WhatsApp it to yourself.'),
       h('div', { class: 'form-actions' }, exportBtn, file, pick),
@@ -197,34 +199,50 @@
       btn);
   }
 
-  /** Developer card: load sample data after confirming, then re-render to show it. */
-  function developerSection(ctx) {
+  /**
+   * Developer card. On the real data, "Load demo data" opens the demo: a separate test shop (js/demo.js,
+   * db.startDemo) that never touches this data. In the demo: "Back to my data" and "Reload demo data".
+   */
+  function developerSection() {
+    const inDemo = db.isDemoDb;
     async function onLoadDemo() {
-      const ok = await ui.confirm(
-        'Add sample data? This adds a Demo Store business (Belmopan, GST 12.5%), 6 products and 4 customers. ' +
-        'Nothing is overwritten: existing products and customers are kept, and only empty business fields are filled. ' +
-        'Unsaved changes on this screen will be lost.',
-        { okText: 'Load demo data' });
+      const data = demo.build();
+      const what = `${data.products.length} test products, ${data.customers.length} test customers, ` +
+        `${data.receipts.length} receipts (${receipt.formatDate(demo.historyStart().toISOString())} to today) and ${data.quotes.length} quotes`;
+      const ok = await ui.confirm(inDemo
+        ? `Start the demo again with fresh test data up to today: ${what}? Changes you made in the demo are replaced. Your own data is not affected.`
+        : `Open the demo? It is a separate test shop with ${what}, so every screen, Stats included, has something to show. ` +
+          'Your own data stays exactly as it is: tap "Back to my data" at the top to return. Unsaved changes on this screen will be lost.',
+        { okText: inDemo ? 'Reload demo data' : 'Load demo data' });
       if (!ok) return;
-      btn.disabled = true;
+      load.disabled = true;
       try {
-        const p = await demo.load();
-        const skipped = p.skippedProducts + p.skippedCustomers;
-        toast(`Added ${p.products.length} products, ${p.customers.length} customers` +
-          (skipped ? ` (${skipped} already there)` : ''));
-        ctx.el.replaceChildren();
-        await render(ctx);
+        await db.startDemo(data);
       } catch (err) {
         console.error(err);
-        toast('Could not load demo data: ' + err.message);
-        btn.disabled = false;
+        toast('Could not open the demo: ' + (err && err.message ? err.message : err));
+        load.disabled = false;
+        return;
       }
+      window.history.replaceState(null, '', '#/stats');
+      location.reload();
     }
-    const btn = h('button', { type: 'button', class: 'btn btn-secondary btn-block', onclick: onLoadDemo }, 'Load demo data');
-    return h('section', { class: 'card' },
+    const load = h('button', { type: 'button', class: 'btn btn-secondary btn-block', onclick: onLoadDemo },
+      inDemo ? 'Reload demo data' : 'Load demo data');
+    if (!inDemo) {
+      return h('section', { class: 'card', id: 'developer' },
+        h('h2', null, 'Developer'),
+        load,
+        h('p', { class: 'field-hint' }, 'Opens a separate demo shop full of test data, for trying the app. Your own data is not changed.'));
+    }
+    const back = h('button', { type: 'button', class: 'btn btn-block', onclick: () => { db.useRealDb(); location.reload(); } },
+      'Back to my data');
+    return h('section', { class: 'card', id: 'developer' },
       h('h2', null, 'Developer'),
-      btn,
-      h('p', { class: 'field-hint' }, 'Fills in sample business details, products and customers for trying the app.'));
+      h('p', { class: 'field-hint demo-note' }, 'You are in the demo: test data only. Your own data is safe and unchanged.'),
+      back,
+      load,
+      h('p', { class: 'field-hint' }, 'Reload demo data starts the demo again with fresh dates up to today.'));
   }
 
   async function render(ctx) {
@@ -397,7 +415,7 @@
           'When you save a receipt, add its customer and items to Customers and Products. Existing details are never overwritten.')),
       backupSection(ctx, s.lastBackupAt),
       appSection(),
-      developerSection(ctx),
+      developerSection(),
       h('div', { class: 'sticky-bar' },
         h('button', { type: 'submit', class: 'btn btn-block' }, 'Save settings')));
 

@@ -40,8 +40,9 @@
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
 
-  function fileName(now = new Date()) {
-    return 'toucanbill-backup-' + dayString(now) + '.json';
+  /** "toucanbill-backup-2026-11-20.json"; a backup made in the demo is "toucanbill-demo-backup-…", never mistaken for real data. */
+  function fileName(now = new Date(), { demo = false } = {}) {
+    return 'toucanbill-' + (demo ? 'demo-' : '') + 'backup-' + dayString(now) + '.json';
   }
 
   /**

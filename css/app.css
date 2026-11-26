@@ -638,6 +638,17 @@ a.rank-name:hover { text-decoration: underline; }
 /* Dev only: the app is using tests/seed.html's test database (app.js). */
 .test-db-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .test-db-bar .btn { min-height: var(--tap); }
+/* Demo: the app is on the separate demo database (Settings > Developer > Load demo data). Warning colours. */
+.demo-bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
+  margin: 0; padding: 12px 16px;
+  background: #fff8e1; border-bottom: 1px solid #f0d98a;
+  color: var(--text); font-weight: 600;
+}
+.demo-bar span { min-width: 0; overflow-wrap: anywhere; }
+.demo-bar .btn { min-height: var(--tap); }
+#developer .demo-note { margin: 0 0 12px; }
+#developer .btn + .btn { margin-top: 12px; }
 
 /* ---- Safety (js/safety.js) ---- */
 .backup-banner { display: grid; gap: 8px; }
