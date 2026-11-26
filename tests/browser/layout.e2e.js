@@ -137,6 +137,10 @@ for (const width of WIDTHS) {
     for (const [hash, what] of routes) {
       await visit(hash);
       await assertFits(width, what);
+      // The highlighted tab's label shows in full too (every tab is the active one on some route here).
+      const active = await evaluate(`(() => { const s = document.querySelector('.bottom-nav a.active span');
+        return { label: s.textContent, cut: s.scrollWidth > s.clientWidth + 0.5 }; })()`);
+      assert.ok(!active.cut, `${what} at ${width}px: the active nav label "${active.label}" is cut off`);
     }
 
     // Bottom nav: seven tabs, each label shown in full (not cut off with an ellipsis), 48px+ tall.
@@ -149,6 +153,15 @@ for (const width of WIDTHS) {
       assert.ok(!n.cut, `nav label "${n.label}" is cut off at ${width}px`);
       assert.ok(n.right <= width + 0.5 && n.height >= 48, `nav "${n.label}" fits and is 48px+ tall`);
     }
+    // Being the active tab never makes a label wider (bold did: "Custom…" at 360px), whatever the phone's font.
+    const grow = await evaluate(`[...document.querySelectorAll('.bottom-nav a')].map((a) => {
+      const s = a.querySelector('span'), was = a.classList.contains('active');
+      a.classList.remove('active'); const off = s.scrollWidth;
+      a.classList.add('active'); const on = s.scrollWidth;
+      a.classList.toggle('active', was);
+      return { label: s.textContent, off, on };
+    }).filter((x) => x.on !== x.off)`);
+    assert.deepEqual(grow, [], `active nav labels are as wide as inactive ones at ${width}px`);
 
     // Quotes: the status chip row and the date chip row stay inside the screen.
     await visit('#/quotes');

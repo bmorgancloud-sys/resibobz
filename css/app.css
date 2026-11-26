@@ -106,7 +106,11 @@ body {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.bottom-nav a.active { color: var(--brand); font-weight: 600; }
+.bottom-nav a.active { color: var(--brand); }
+/* Bolder without getting wider: font-weight 600 made "Customers" too wide for its tab at 360px ("Custom…").
+   A hairline stroke thickens the letters but leaves their widths alone, so an active label fits wherever an
+   inactive one does (layout.e2e.js checks every tab's label while it is the active one). */
+.bottom-nav a.active span { -webkit-text-stroke: 0.4px currentColor; }
 .bottom-nav a:focus-visible { outline: 2px solid var(--brand); outline-offset: -4px; }
 
 .banner {

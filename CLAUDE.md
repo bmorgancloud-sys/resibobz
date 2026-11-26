@@ -20,7 +20,8 @@ A GST receipt/invoice maker for Belize small businesses. Tagline: "Our national 
   pre-rebrand production app (commit 2c6b92f, read from git) and checks it survives the update untouched.
 - Blue theme (tokens on `:root` in app.css; the yellow "Sunny" theme was removed): header `--header-bg` #0D5DAA
   with white text; primary buttons `--brand` #0D5DAA with `--brand-ink` white; selected chips/segments #0D5DAA with
-  white text; the active nav tab is blue. PDF title/table header and the Stats chart series use the same #0D5DAA.
+  white text; the active nav tab is blue (bolder by a text stroke, not font-weight: see Navigation). PDF title/table
+  header and the Stats chart series use the same #0D5DAA.
   Icons are a toucan on navy #10233F (manifest `background_color`; `theme_color` #0D5DAA). Accents
   (`--accent-green` #6DBE45, `--accent-orange` #F58220, `--accent-blue` #4FA3D9, `--accent-red` #E63B2E) are for
   charts and badges only, always with `--badge-ink` #111111 text. The pale yellow #fff8e1 boxes are warnings
@@ -149,7 +150,10 @@ controlling worker's `CACHE_VERSION`, asked via a `GET_VERSION` message) and "Ch
 
 Bottom nav with seven tabs: **New, History, Quotes, Stats, Products, Customers, Settings**. At 320px each tab is ~46px
 wide by 64px tall (the user accepted this exception to the 48px rule, for nav width only), so labels/icons shrink under
-400px wide (layout.e2e.js fails if any label is cut off). `#view` gets `data-view="<tab>"`; Stats widens it to 1000px. Hash routing:
+400px wide (layout.e2e.js fails if any label is cut off, checked with every tab as the active one). The active tab is
+blue with a hairline `-webkit-text-stroke`, never `font-weight`: bold made "Customers" too wide ("Custom…" at 360px),
+and the stroke keeps an active label exactly as wide as an inactive one (layout.e2e.js checks that too).
+`#view` gets `data-view="<tab>"`; Stats widens it to 1000px. Hash routing:
 `#/<tab>[/<param>]`, e.g. `#/receipt/12`, `#/products/new`. Non-tab routes set `nav` in `TABS` (app.js)
 to highlight a tab: `#/receipt/<id>` highlights History, `#/quote/...` highlights Quotes, `#/summary` highlights History. Old `#/history/<id>` links redirect to `#/receipt/<id>`.
 New Receipt saves to `#/receipt/<id>/saved` (shows "Saved. View in History" once, then drops `/saved`).
